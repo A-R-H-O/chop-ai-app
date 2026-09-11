@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Albert_Sans, Inter } from "next/font/google";
+import { PostHogProvider } from "@/components/chop/posthog-provider";
 import "./globals.css";
 
 const albertSans = Albert_Sans({
@@ -26,7 +27,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${albertSans.variable} ${inter.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col">{children}</body>
+      <body className="flex min-h-full flex-col">
+        <PostHogProvider>{children}</PostHogProvider>
+      </body>
     </html>
   );
 }
