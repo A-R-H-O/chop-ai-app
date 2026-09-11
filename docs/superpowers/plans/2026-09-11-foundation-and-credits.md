@@ -10,6 +10,31 @@
 
 **Prerequisite:** the repo at `/Users/huddlehq/Desktop/chop-ai-app` already contains `README.md`, `.gitignore`, `design/handoff-credits/`, `docs/`, and `public/logo/` plus `public/illustrations/`. Do not delete any of them.
 
+## Execution status as of 2026-09-11
+
+Work is on branch `feat/foundation-and-credits`. Tasks marked corrected below were revised against what the toolchain actually does, not what was assumed when the plan was written.
+
+| task | state |
+| --- | --- |
+| 0 prerequisites | `psql` 18.6 installed. **Docker blocked** — needs an interactive `sudo`, see the correction in Step 2 |
+| 1 scaffold | done |
+| 2 shadcn | done, command corrected |
+| 3 tokens and fonts | done, approach corrected |
+| 4 local Supabase | **blocked on Docker** |
+| 5 schema | SQL written, **not applied** |
+| 6 RLS | SQL written, **not applied** |
+| 7 credit functions | SQL written, **not applied** |
+| 8 pgTAP suites | both files written, **never run** |
+| 9 constants and vitest | done, install corrected |
+| 10 Supabase clients | done |
+| 11 Google sign-in | not started, needs a Google OAuth client |
+| 12 PostHog and Sentry | PostHog done; Sentry deferred, needs an account |
+| 13 credit balance | done, 12 tests passing |
+| 14 assemble header | not started, needs a live database |
+| 15 deploy | not started, needs hosted Supabase, PostHog, and Sentry projects |
+
+Everything blocked is blocked on an account or a credential, not on code.
+
 ---
 
 ## File Structure
@@ -58,11 +83,13 @@ node -v && npm -v
 
 Expected: `node` v24 and `npm` 11 are present. If `docker` and `psql` both print paths, skip to Task 1.
 
-- [ ] **Step 2: Install Docker**
+- [ ] **Step 2: Install Docker — must be run interactively**
 
 ```bash
-brew install --cask docker
+brew install --cask docker-desktop
 ```
+
+> **Corrected during execution.** The cask is `docker-desktop`; `docker` is an alias that resolves to it. More importantly this **cannot be run from a non-interactive shell**: partway through, it needs `sudo` to symlink `docker-credential-osxkeychain` into `/usr/local/bin`, and with no TTY to prompt for a password it fails and Homebrew rolls the whole install back, deleting `/Applications/Docker.app` again. Run it in a real terminal, or in Claude Code prefix it with `!` so it runs in the session and can prompt.
 
 Then launch Docker Desktop once from Applications and accept its terms, because the daemon does not start from the CLI on first run.
 
@@ -158,10 +185,12 @@ git push origin main
 
 ```bash
 cd /Users/huddlehq/Desktop/chop-ai-app
-npx --yes shadcn@latest init --template next --base radix --yes
+npx --yes shadcn@latest init --template next --base radix --preset nova --yes
 ```
 
-Expected: writes `components.json` and `lib/utils.ts`, installs `clsx`, `tailwind-merge`, and Radix packages. Radix rather than the Base UI default because the top up dialog in a later plan needs Radix's focus trapping and escape handling.
+Expected: writes `components.json`, `lib/utils.ts`, and `components/ui/button.tsx`, installs the `radix-ui` package, and rewrites `app/globals.css` with its own token system. Radix rather than the Base UI default because the top up dialog in a later plan needs Radix's focus trapping and escape handling.
+
+> **Corrected during execution.** `--yes` alone is not enough: it skips the confirmation but still prompts interactively for a preset, which hangs a non-interactive shell. `--preset` is required, and the valid values are `nova`, `vega`, `maia`, `lyra`, `mira`, `luma`, `sera`, `rhea` — not the `base-nova` style name that `-d` implies.
 
 - [ ] **Step 2: Add the two components this plan and the next one need**
 
@@ -1101,39 +1130,58 @@ The Postgres functions own the arithmetic; TypeScript needs the same numbers to 
 - [ ] **Step 1: Install the test runner**
 
 ```bash
-npm install -D vitest @vitejs/plugin-react jsdom @testing-library/react @testing-library/jest-dom
+npm install -D @types/node@^24 vitest jsdom @testing-library/react \
+  @testing-library/jest-dom @testing-library/user-event
 ```
+
+> **Corrected during execution.** Two deviations from the obvious install. `@vitejs/plugin-react` is **omitted**: its Babel chain conflicts irreconcilably with the one the `shadcn` package pulls in, and it turns out not to be needed at all because Vitest 5 transforms TSX with oxc out of the box. And `@types/node` must be bumped to `^24`: the Next scaffold pins `^20`, Vitest 5 requires `^22 || >=24`, and the mismatch is a hard `ERESOLVE` failure rather than a warning.
 
 - [ ] **Step 2: Write `vitest.config.ts`**
 
 ```ts
 import { defineConfig } from "vitest/config";
-import react from "@vitejs/plugin-react";
 import path from "node:path";
 
 export default defineConfig({
-  plugins: [react()],
+  // No @vitejs/plugin-react: its Babel chain conflicts with the one the
+  // shadcn package pulls in. Vitest 5 transforms TSX with oxc out of the
+  // box, so no JSX configuration is needed here.
   test: {
     environment: "jsdom",
     setupFiles: ["./vitest.setup.ts"],
-    include: ["lib/**/*.test.ts", "lib/**/*.test.tsx", "components/**/*.test.tsx"],
+    include: [
+      "lib/**/*.test.ts",
+      "lib/**/*.test.tsx",
+      "components/**/*.test.tsx",
+    ],
   },
   resolve: {
-    alias: { "@": path.resolve(__dirname, ".") },
+    alias: { "@": path.resolve(import.meta.dirname, ".") },
   },
 });
 ```
+
+`import.meta.dirname` rather than `__dirname`, which does not exist in an ES module.
 
 Write `vitest.setup.ts`:
 
 ```ts
 import "@testing-library/jest-dom/vitest";
+import { cleanup } from "@testing-library/react";
+import { afterEach } from "vitest";
+
+// Testing Library only auto-registers cleanup when Vitest globals are
+// enabled. This project imports test helpers explicitly, so without this
+// the DOM accumulates across tests and queries match multiple elements.
+afterEach(cleanup);
 ```
 
-Add the script to `package.json`, inside the existing `"scripts"` object:
+The `afterEach(cleanup)` is not optional. Without it the component tests in Task 13 fail with `Found multiple elements by: [data-testid="balance-label"]`, because every previous test's render is still in the document.
 
-```json
-"test": "vitest run"
+Add the script to `package.json`:
+
+```bash
+npm pkg set scripts.test="vitest run"
 ```
 
 - [ ] **Step 3: Write the failing test**
@@ -1383,7 +1431,7 @@ export const config = {
 npm run build
 ```
 
-Expected: `✓ Compiled successfully` and the route list includes `ƒ Middleware`.
+Expected: `✓ Compiled successfully` and the route list includes `ƒ Proxy (Middleware)`. Next 16 labels it "Proxy (Middleware)", not "Middleware".
 
 - [ ] **Step 7: Commit**
 
@@ -1503,10 +1551,13 @@ git push origin main
 
 ```bash
 npm install posthog-js posthog-node
-npx --yes @sentry/wizard@latest -i nextjs --saas --skip-connect
 ```
 
-The Sentry wizard writes its own config files and edits `next.config.ts`. Accept its defaults; it is the supported install path and hand-writing those files goes stale.
+The Sentry wizard writes its own config files and edits `next.config.ts`. Accept its defaults; it is the supported install path and hand-writing those files goes stale. **It requires an interactive account login**, so run it in a real terminal once a Sentry project exists:
+
+```bash
+npx --yes @sentry/wizard@latest -i nextjs --saas
+```
 
 - [ ] **Step 2: Write the event name constants**
 
