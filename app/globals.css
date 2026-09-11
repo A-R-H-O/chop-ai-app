@@ -48,39 +48,89 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/*
+ * chop.ai design tokens, from design/handoff-credits/README.md.
+ *
+ * Prefixed `chop-` because shadcn's own @theme above already owns the
+ * names `accent` and `muted`, and a silent collision there would be
+ * painful to debug. Anything named chop-* is ours.
+ */
+@theme {
+  --color-chop-ground: #090317;
+  --color-chop-option: #0b0420;
+  --color-chop-surface: #120827;
+  --color-chop-ink: #fefcec;
+  --color-chop-accent: #fce119;
+  --color-chop-on-accent: #181601;
+
+  --color-chop-hairline: rgb(254 252 236 / 0.14);
+  --color-chop-hairline-strong: rgb(254 252 236 / 0.16);
+  --color-chop-hairline-radio: rgb(254 252 236 / 0.32);
+  --color-chop-hairline-hover: rgb(254 252 236 / 0.28);
+
+  --color-chop-muted: rgb(254 252 236 / 0.56);
+  --color-chop-muted-soft: rgb(254 252 236 / 0.4);
+  --color-chop-muted-strong: rgb(254 252 236 / 0.64);
+
+  --color-chop-scrim: rgb(9 3 23 / 0.72);
+
+  --font-display: var(--font-albert-sans), sans-serif;
+
+  --radius-button: 6px;
+  --radius-option: 12px;
+  --radius-dialog: 16px;
+  --radius-artboard: 24px;
+
+  --shadow-surface: inset 0 0 0 1px rgb(254 252 236 / 0.16);
+  --shadow-dialog:
+    inset 0 0 0 1px rgb(254 252 236 / 0.16), 0 24px 60px rgb(0 0 0 / 0.6);
+}
+
+/*
+ * shadcn's semantic layer, repointed at the handoff palette so its
+ * components come out on-brand without per-component overrides.
+ *
+ * Note --accent is shadcn's subtle hover background, not a brand colour,
+ * so it maps to a surface. The handoff's yellow is --primary.
+ *
+ * chop.ai is dark only, so these live in :root rather than .dark and
+ * there is no theme toggle. The .dark block below is left as shadcn
+ * wrote it and is inert.
+ */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
+  --background: #090317;
+  --foreground: #fefcec;
+  --card: #120827;
+  --card-foreground: #fefcec;
+  --popover: #120827;
+  --popover-foreground: #fefcec;
+  --primary: #fce119;
+  --primary-foreground: #181601;
+  --secondary: #0b0420;
+  --secondary-foreground: #fefcec;
+  --muted: #0b0420;
+  --muted-foreground: rgb(254 252 236 / 0.56);
+  --accent: #120827;
+  --accent-foreground: #fefcec;
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: rgb(254 252 236 / 0.14);
+  --input: rgb(254 252 236 / 0.14);
+  --ring: #fce119;
+  --chart-1: #fce119;
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --radius: 6px;
+  --sidebar: #120827;
+  --sidebar-foreground: #fefcec;
+  --sidebar-primary: #fce119;
+  --sidebar-primary-foreground: #181601;
+  --sidebar-accent: #0b0420;
+  --sidebar-accent-foreground: #fefcec;
+  --sidebar-border: rgb(254 252 236 / 0.14);
+  --sidebar-ring: #fce119;
+  --font-sans: var(--font-inter), sans-serif;
 }
 
 .dark {

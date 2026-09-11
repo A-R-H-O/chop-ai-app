@@ -194,35 +194,36 @@ git push origin main
 Tailwind v4 has no `tailwind.config.ts`. Tokens are declared in CSS with `@theme`, which both generates utilities (`bg-ground`) and exposes CSS variables (`var(--color-ground)`).
 
 **Files:**
-- Modify: `app/globals.css` (replace entirely)
+- Modify: `app/globals.css` (merge into what shadcn wrote — do not replace)
 - Modify: `app/layout.tsx` (replace entirely)
 
-- [ ] **Step 1: Replace `app/globals.css` with the handoff tokens**
+> **Corrected during execution.** This task originally said to replace `globals.css` entirely with unprefixed token names. Both halves of that were wrong. `shadcn init` writes its own token system into that file, and `components/ui/button.tsx` and `dialog.tsx` depend on it, so replacing the file breaks them. Worse, shadcn's `@theme` already defines `--color-accent` and `--color-muted`, which collide with two handoff token names. The approach below is what actually works.
+
+- [ ] **Step 1: Add the handoff tokens to `app/globals.css`, prefixed `chop-`**
+
+Insert a new `@theme` block after shadcn's existing `@theme inline` block. Every token is prefixed so a reader always knows which system a class belongs to and a collision is impossible:
 
 ```css
-@import "tailwindcss";
-
 @theme {
-  --color-ground: #090317;
-  --color-option: #0b0420;
-  --color-surface: #120827;
-  --color-ink: #fefcec;
-  --color-accent: #fce119;
-  --color-on-accent: #181601;
+  --color-chop-ground: #090317;
+  --color-chop-option: #0b0420;
+  --color-chop-surface: #120827;
+  --color-chop-ink: #fefcec;
+  --color-chop-accent: #fce119;
+  --color-chop-on-accent: #181601;
 
-  --color-hairline: rgb(254 252 236 / 0.14);
-  --color-hairline-strong: rgb(254 252 236 / 0.16);
-  --color-hairline-radio: rgb(254 252 236 / 0.32);
-  --color-hairline-hover: rgb(254 252 236 / 0.28);
+  --color-chop-hairline: rgb(254 252 236 / 0.14);
+  --color-chop-hairline-strong: rgb(254 252 236 / 0.16);
+  --color-chop-hairline-radio: rgb(254 252 236 / 0.32);
+  --color-chop-hairline-hover: rgb(254 252 236 / 0.28);
 
-  --color-muted: rgb(254 252 236 / 0.56);
-  --color-muted-soft: rgb(254 252 236 / 0.4);
-  --color-muted-strong: rgb(254 252 236 / 0.64);
+  --color-chop-muted: rgb(254 252 236 / 0.56);
+  --color-chop-muted-soft: rgb(254 252 236 / 0.4);
+  --color-chop-muted-strong: rgb(254 252 236 / 0.64);
 
-  --color-scrim: rgb(9 3 23 / 0.72);
+  --color-chop-scrim: rgb(9 3 23 / 0.72);
 
   --font-display: var(--font-albert-sans), sans-serif;
-  --font-sans: var(--font-inter), sans-serif;
 
   --radius-button: 6px;
   --radius-option: 12px;
@@ -230,16 +231,54 @@ Tailwind v4 has no `tailwind.config.ts`. Tokens are declared in CSS with `@theme
   --radius-artboard: 24px;
 
   --shadow-surface: inset 0 0 0 1px rgb(254 252 236 / 0.16);
-  --shadow-dialog: inset 0 0 0 1px rgb(254 252 236 / 0.16),
-    0 24px 60px rgb(0 0 0 / 0.6);
-}
-
-body {
-  background: var(--color-ground);
-  color: var(--color-ink);
-  font-family: var(--font-sans);
+  --shadow-dialog:
+    inset 0 0 0 1px rgb(254 252 236 / 0.16), 0 24px 60px rgb(0 0 0 / 0.6);
 }
 ```
+
+- [ ] **Step 1b: Repoint shadcn's semantic layer at the handoff palette**
+
+Replace the values inside shadcn's existing `:root` block so its components are on-brand without per-component overrides. The mapping that matters: **`--accent` is shadcn's subtle hover background, not a brand colour**, so it takes a surface. The handoff's yellow is `--primary`. Getting those two backwards renders every shadcn hover state in acid yellow.
+
+```css
+:root {
+  --background: #090317;
+  --foreground: #fefcec;
+  --card: #120827;
+  --card-foreground: #fefcec;
+  --popover: #120827;
+  --popover-foreground: #fefcec;
+  --primary: #fce119;
+  --primary-foreground: #181601;
+  --secondary: #0b0420;
+  --secondary-foreground: #fefcec;
+  --muted: #0b0420;
+  --muted-foreground: rgb(254 252 236 / 0.56);
+  --accent: #120827;
+  --accent-foreground: #fefcec;
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: rgb(254 252 236 / 0.14);
+  --input: rgb(254 252 236 / 0.14);
+  --ring: #fce119;
+  --chart-1: #fce119;
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 6px;
+  --sidebar: #120827;
+  --sidebar-foreground: #fefcec;
+  --sidebar-primary: #fce119;
+  --sidebar-primary-foreground: #181601;
+  --sidebar-accent: #0b0420;
+  --sidebar-accent-foreground: #fefcec;
+  --sidebar-border: rgb(254 252 236 / 0.14);
+  --sidebar-ring: #fce119;
+  --font-sans: var(--font-inter), sans-serif;
+}
+```
+
+chop.ai is dark only, so these live in `:root` rather than `.dark` and there is no theme toggle. Leave shadcn's `.dark` block in place; it is inert. Leave the `@layer base` block at the bottom alone — it is what applies `bg-background text-foreground` to `body`, which now resolves to the handoff ground and ink.
 
 - [ ] **Step 2: Replace `app/layout.tsx` to load both fonts**
 
@@ -285,8 +324,8 @@ Replace `app/page.tsx` entirely:
 ```tsx
 export default function Home() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-ground">
-      <h1 className="font-display text-6xl font-bold tracking-[-0.02em] text-ink">
+    <main className="flex flex-1 items-center justify-center bg-chop-ground">
+      <h1 className="font-display text-6xl font-bold tracking-[-0.02em] text-chop-ink">
         what&apos;s the sample?
       </h1>
     </main>
@@ -294,13 +333,22 @@ export default function Home() {
 }
 ```
 
+`flex-1` rather than `min-h-screen` because the layout's `<body>` is already `flex min-h-full flex-col`.
+
 - [ ] **Step 4: Build and confirm the token classes resolved**
 
+Next 16 with Turbopack emits CSS to `.next/static/chunks/`, not `.next/static/css/`, so glob for it:
+
 ```bash
-npm run build && grep -c "fce119\|090317" .next/static/css/*.css
+npm run build
+CSS=$(find .next -name "*.css" -not -path "*/cache/*" | head -1)
+grep -oh "fce119\|090317\|fefcec\|120827\|181601\|0b0420" "$CSS" | sort -u
+grep -oh "bg-chop-ground\|text-chop-ink\|font-display" "$CSS" | sort -u
+grep -o -- "--primary: *#fce119\|--background: *#090317" "$CSS" | sort -u
+grep -oh "font-albert-sans\|font-inter" "$CSS" | sort -u
 ```
 
-Expected: build succeeds and grep prints a count of 1 or more. A count of 0 means `@theme` did not register, so the token names are wrong.
+Expected: all six hexes, all three utility class names, both repointed shadcn vars, and both font variables. A missing utility class name means the `@theme` token name is wrong and Tailwind generated nothing; an empty hex list means the whole block failed to register.
 
 - [ ] **Step 5: Commit**
 
