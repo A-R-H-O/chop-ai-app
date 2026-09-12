@@ -16,24 +16,34 @@ Work is on branch `feat/foundation-and-credits`. Tasks marked corrected below we
 
 | task | state |
 | --- | --- |
-| 0 prerequisites | `psql` 18.6 installed. **Docker blocked** — needs an interactive `sudo`, see the correction in Step 2 |
+| 0 prerequisites | done. `psql` 18.6 and Docker both working; the Supabase CLI also needed upgrading, see below |
 | 1 scaffold | done |
 | 2 shadcn | done, command corrected |
 | 3 tokens and fonts | done, approach corrected |
-| 4 local Supabase | **blocked on Docker** |
-| 5 schema | SQL written, **not applied** |
-| 6 RLS | SQL written, **not applied** |
-| 7 credit functions | SQL written, **not applied** |
-| 8 pgTAP suites | both files written, **never run** |
+| 4 local Supabase | done |
+| 5 schema | done, applied and verified |
+| 6 RLS | done, applied and verified |
+| 7 credit functions | done, applied and verified |
+| 8 pgTAP suites | done, **20/20 passing**, and proven to fail when `daily_grant()` is changed |
 | 9 constants and vitest | done, install corrected |
 | 10 Supabase clients | done |
-| 11 Google sign-in | not started, needs a Google OAuth client |
+| 11 Google sign-in | code done. OAuth round trip **untested** — needs a Google client ID and secret |
 | 12 PostHog and Sentry | PostHog done; Sentry deferred, needs an account |
-| 13 credit balance | done, 12 tests passing |
-| 14 assemble header | not started, needs a live database |
+| 13 credit balance | done, 12 vitest tests passing |
+| 14 assemble header | done. Unauthenticated path verified in a browser; signed-in path needs Google credentials |
 | 15 deploy | not started, needs hosted Supabase, PostHog, and Sentry projects |
 
-Everything blocked is blocked on an account or a credential, not on code.
+Also added beyond the plan: `supabase/seed.sql`, a dev user so the credit path is exercisable without an OAuth round trip and a `db reset` does not mean signing in by hand.
+
+**Two further corrections found during execution.**
+
+*The Supabase CLI version must match the one that wrote `config.toml`.* Homebrew had 2.104.0 at `/opt/homebrew/bin/supabase`, which shadowed npx — so even `npx supabase` resolved to the old binary — while `npx supabase@latest init` had written a `config.toml` containing `[local_smtp]`, a key 2.104.0 does not recognize. `supabase start` then failed at config parse before any container started. Fix: `brew upgrade supabase`, so both paths are 2.117.0.
+
+*A function prop cannot cross the Server to Client Component boundary.* Task 14's `AppHeader` is a Server Component and `CreditBalance` is a Client Component, so the original `onTopUp={() => {}}` would have thrown — functions are not serializable. `components/chop/header-credits.tsx` is a `"use client"` wrapper that owns the handler, so only the balance crosses. The corrected Task 14 below reflects this.
+
+**Verification worth keeping.** `apply_daily_grant` returns `8` for the seeded user when called with the service-role key, and returns `permission denied for function apply_daily_grant` when called with the anon key. That proves the `revoke` holds at the HTTP layer, not merely in a catalog check — a signed-in user cannot grant themselves credits.
+
+Everything still blocked is blocked on an account or a credential, not on code.
 
 ---
 
@@ -1896,9 +1906,39 @@ export async function readBalance(userId: string): Promise<number> {
 }
 ```
 
+- [ ] **Step 1b: Write the client wrapper that owns the top up handler**
+
+> **Corrected during execution.** This step did not exist. The original Task 14 passed `onTopUp={() => {}}` from `AppHeader`, a Server Component, into `CreditBalance`, a Client Component. That throws: function props are not serializable across the boundary. The handler has to live on the client side of it.
+
+`components/chop/header-credits.tsx`:
+
+```tsx
+"use client";
+
+import { CreditBalance } from "./credit-balance";
+
+/**
+ * Client wrapper that owns the top up handler.
+ *
+ * This indirection is load-bearing: AppHeader is a Server Component and
+ * CreditBalance is a Client Component, and a function prop cannot cross
+ * that boundary because it is not serializable. Only the balance, a
+ * number, crosses. The dialog itself arrives in the payments plan.
+ */
+export function HeaderCredits({ balance }: { balance: number }) {
+  function openTopUp() {
+    // Intentionally empty until the payments plan adds the dialog. The
+    // control is rendered and keeps its accessible name so the header
+    // layout and a11y are testable now.
+  }
+
+  return <CreditBalance balance={balance} onTopUp={openTopUp} />;
+}
+```
+
 - [ ] **Step 2: Write the header**
 
-`components/chop/app-header.tsx`:
+`components/chop/app-header.tsx`, rendering `HeaderCredits` rather than `CreditBalance` directly:
 
 ```tsx
 import Image from "next/image";
@@ -1925,23 +1965,13 @@ export async function AppHeader() {
         priority
         className="h-[18px] w-auto invert md:h-[22px]"
       />
-      {balance === null ? (
-        <SignInButton />
-      ) : (
-        <TopUpSlot balance={balance} />
-      )}
+      {balance === null ? <SignInButton /> : <HeaderCredits balance={balance} />}
     </header>
   );
 }
-
-function TopUpSlot({ balance }: { balance: number }) {
-  // The dialog arrives in the payments plan. Until then the control is
-  // present and accessible but has nothing to open.
-  return <CreditBalance balance={balance} onTopUp={() => {}} />;
-}
 ```
 
-`CreditBalance` is a Client Component and `AppHeader` is a Server Component, which is why the balance crosses as a plain number rather than a client-side fetch.
+Import `HeaderCredits` from `./header-credits`, not `CreditBalance` directly. The balance crosses the boundary as a plain number, which is serializable; the handler stays on the client side.
 
 - [ ] **Step 3: Mount it on the home page**
 
