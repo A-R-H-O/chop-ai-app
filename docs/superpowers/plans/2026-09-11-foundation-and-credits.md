@@ -27,11 +27,19 @@ Work is on branch `feat/foundation-and-credits`. Tasks marked corrected below we
 | 8 pgTAP suites | done, **20/20 passing**, and proven to fail when `daily_grant()` is changed |
 | 9 constants and vitest | done, install corrected |
 | 10 Supabase clients | done |
-| 11 Google sign-in | code done. OAuth round trip **untested** — needs a Google client ID and secret |
+| 11 Google sign-in | code done. Google is configured on the **hosted** project and verified to 302 to `accounts.google.com`. The round trip itself cannot be automated, see below |
 | 12 PostHog and Sentry | PostHog done; Sentry deferred, needs an account |
 | 13 credit balance | done, 12 vitest tests passing |
-| 14 assemble header | done. Unauthenticated path verified in a browser; signed-in path needs Google credentials |
-| 15 deploy | not started, needs hosted Supabase, PostHog, and Sentry projects |
+| 14 assemble header | done. Unauthenticated path verified in a browser; signed-in path needs a human sign-in |
+| 15 deploy | hosted Supabase project `chop-ai-app` (`peoxidipokajuiyhgvqv`, us-west-2) linked, all three migrations pushed and verified. Vercel not yet deployed; PostHog and Sentry projects still needed |
+
+**OAuth cannot be verified headlessly.** Completing a Google sign-in requires a human at Google's consent screen, so the final confirmation of Task 11 is inherently manual. What *was* verified without a browser: the hosted `/auth/v1/authorize?provider=google` endpoint returns a 302 to `accounts.google.com` carrying a real client ID, which proves the provider is configured rather than merely toggled on.
+
+Note that Supabase passes `redirect_to` straight through to Google and validates it only at the callback, so probing the authorize endpoint with a bogus `redirect_to` returns an identical 302. The redirect allowlist state is therefore not discoverable from outside; add `http://localhost:3000/auth/callback` in the dashboard regardless, since it is harmless if already present.
+
+**Local Supabase has no Google provider.** `config.toml` contains no `[auth.external.google]` block, and adding one needs the client *secret*, which Supabase stores and does not expose. Until that is added locally, sign-in is testable only against the hosted project. `.env.hosted.local` (gitignored) holds those values with switch instructions in its header.
+
+**Hosted verification, same as local.** anon is refused `apply_daily_grant` with `permission denied`, anon reads of `credit_balances` and `audio_cache` both return `[]`, and service-role reads `chop_cost() = 8`. `db push` reported `seeds: []`, confirming the dev user did not reach production.
 
 Also added beyond the plan: `supabase/seed.sql`, a dev user so the credit path is exercisable without an OAuth round trip and a `db reset` does not mean signing in by hand.
 
