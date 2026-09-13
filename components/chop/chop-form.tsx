@@ -1,7 +1,9 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Link2, Upload } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 import { CHOP_COST, isBlocked } from "@/lib/credits/constants";
 import { AudioFileCard } from "./audio-file-card";
 import { TopUpDialog } from "./top-up-dialog";
@@ -37,6 +39,8 @@ export function ChopForm({ balance }: { balance: number | null }) {
   const [prompt, setPrompt] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [topUpOpen, setTopUpOpen] = useState(false);
+  const [pending, setPending] = useState(false);
+  const router = useRouter();
   const fileInput = useRef<HTMLInputElement>(null);
 
   const signedOut = balance === null;
@@ -69,17 +73,63 @@ export function ChopForm({ balance }: { balance: number | null }) {
     if (fileInput.current) fileInput.current.value = "";
   }
 
-  function chop() {
+  async function chop() {
     // The handoff specifies that attempting a chop below the cost opens
     // the top up dialog rather than just refusing.
     if (blocked) {
       setTopUpOpen(true);
       return;
     }
-    // Stub. The pipeline lands in a later plan; deliberately does not
-    // create a job, because spending credits on work nothing can process
-    // would need a refund path that does not exist yet.
-    setNotice("the chopping pipeline is not wired up yet");
+
+    setPending(true);
+    setNotice(null);
+
+    try {
+      let sourcePath: string | null = null;
+
+      if (file) {
+        const supabase = createClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) throw new Error("sign in to chop");
+
+        // Uploaded under the caller's own uid, which is the prefix the
+        // storage policy and the jobs route both enforce.
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, "_");
+        sourcePath = `${user.id}/${Date.now()}_${safeName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("sources")
+          .upload(sourcePath, file, { upsert: false });
+        if (uploadError) throw new Error(uploadError.message);
+      }
+
+      const response = await fetch("/api/jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sourceType: file ? "upload" : "youtube",
+          sourceUrl: file ? null : link.trim(),
+          sourcePath,
+          prompt,
+        }),
+      });
+
+      const body = await response.json();
+
+      if (response.status === 402) {
+        setTopUpOpen(true);
+        return;
+      }
+      if (!response.ok) throw new Error(body.error ?? "could not start the chop");
+
+      router.push(`/jobs/${body.jobId}`);
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : "could not start the chop");
+    } finally {
+      setPending(false);
+    }
   }
 
   const disabledReason = signedOut
@@ -161,7 +211,7 @@ export function ChopForm({ balance }: { balance: number | null }) {
           onClick={chop}
           // A credit-blocked user stays clickable on purpose, so the
           // click can open the top up dialog rather than doing nothing.
-          disabled={disabledReason !== null && !blocked}
+          disabled={pending || (disabledReason !== null && !blocked)}
           title={disabledReason ?? undefined}
           // Disabled state is a flat muted surface rather than a faded
           // accent: the accent at 40% over the card reads as a muddy
@@ -169,7 +219,7 @@ export function ChopForm({ balance }: { balance: number | null }) {
           // deliberate state.
           className="inline-flex h-10 items-center justify-center rounded-lg bg-chop-accent px-5 font-sans text-[15px] font-medium text-chop-on-accent transition-colors duration-150 ease-out hover:bg-[#ffeb4d] disabled:cursor-not-allowed disabled:bg-chop-option disabled:text-chop-muted"
         >
-          chop it
+          {pending ? "chopping" : "chop it"}
         </button>
       </div>
 
