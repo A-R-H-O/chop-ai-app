@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { Link2, Upload } from "lucide-react";
 import { CHOP_COST, isBlocked } from "@/lib/credits/constants";
 import { AudioFileCard } from "./audio-file-card";
+import { TopUpDialog } from "./top-up-dialog";
 
 const ACCEPT = "audio/*,.wav,.mp3,.flac,.aiff,.m4a,.ogg";
 
@@ -35,6 +36,7 @@ export function ChopForm({ balance }: { balance: number | null }) {
   const [duration, setDuration] = useState<number | null>(null);
   const [prompt, setPrompt] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
+  const [topUpOpen, setTopUpOpen] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const signedOut = balance === null;
@@ -68,7 +70,13 @@ export function ChopForm({ balance }: { balance: number | null }) {
   }
 
   function chop() {
-    // Stub. The pipeline lands in the next plan; deliberately does not
+    // The handoff specifies that attempting a chop below the cost opens
+    // the top up dialog rather than just refusing.
+    if (blocked) {
+      setTopUpOpen(true);
+      return;
+    }
+    // Stub. The pipeline lands in a later plan; deliberately does not
     // create a job, because spending credits on work nothing can process
     // would need a refund path that does not exist yet.
     setNotice("the chopping pipeline is not wired up yet");
@@ -151,7 +159,9 @@ export function ChopForm({ balance }: { balance: number | null }) {
         <button
           type="button"
           onClick={chop}
-          disabled={disabledReason !== null}
+          // A credit-blocked user stays clickable on purpose, so the
+          // click can open the top up dialog rather than doing nothing.
+          disabled={disabledReason !== null && !blocked}
           title={disabledReason ?? undefined}
           // Disabled state is a flat muted surface rather than a faded
           // accent: the accent at 40% over the card reads as a muddy
@@ -171,6 +181,8 @@ export function ChopForm({ balance }: { balance: number | null }) {
           {notice ?? disabledReason}
         </p>
       )}
+
+      <TopUpDialog open={topUpOpen} onOpenChange={setTopUpOpen} />
     </div>
   );
 }
