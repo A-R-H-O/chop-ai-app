@@ -11,6 +11,8 @@ interface CreateJobBody {
   sourcePath?: string | null;
   prompt?: string;
   parentJobId?: string | null;
+  /** Per-card note from the recommended screen, appended to the prompt. */
+  extraContext?: string | null;
 }
 
 export async function POST(request: NextRequest) {
@@ -23,7 +25,32 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "not signed in" }, { status: 401 });
   }
 
-  const body = (await request.json().catch(() => null)) as CreateJobBody | null;
+  const raw = (await request.json().catch(() => null)) as CreateJobBody | null;
+  let body = raw;
+
+  // A retry inherits the parent's source and prompt rather than trusting
+  // the client to resend them, so a retry cannot quietly become a chop of
+  // something else. Any per-card note is appended to the prompt.
+  if (raw?.parentJobId) {
+    const { data: parent } = await supabase
+      .from("jobs")
+      .select("source_type,source_url,source_path,prompt")
+      .eq("id", raw.parentJobId)
+      .single();
+
+    if (!parent) {
+      return NextResponse.json({ error: "unknown parent job" }, { status: 404 });
+    }
+
+    const extra = (raw.extraContext ?? "").trim();
+    body = {
+      sourceType: parent.source_type,
+      sourceUrl: parent.source_url,
+      sourcePath: parent.source_path,
+      prompt: extra ? `${parent.prompt}. ${extra}` : parent.prompt,
+      parentJobId: raw.parentJobId,
+    };
+  }
 
   if (body?.sourceType !== "youtube" && body?.sourceType !== "upload") {
     return NextResponse.json(
@@ -40,7 +67,7 @@ export async function POST(request: NextRequest) {
   // An upload path must sit under the caller's own uid. Without this a
   // signed-in user could point a job at somebody else's uploaded file and
   // have the worker, which runs as service-role, happily read it.
-  if (body.sourceType === "upload") {
+  if (body.sourceType === "upload" && !body.parentJobId) {
     const path = body.sourcePath ?? "";
     if (!path.startsWith(`${user.id}/`)) {
       return NextResponse.json(
