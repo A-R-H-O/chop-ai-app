@@ -32,7 +32,14 @@ function youtubeVideoId(raw: string): string | null {
   }
 }
 
-export function ChopForm({ balance }: { balance: number | null }) {
+export function ChopForm({
+  balance,
+  onFileChange,
+}: {
+  balance: number | null;
+  /** Lets the page swap the waveform backdrop for the upload marks. */
+  onFileChange?: (hasFile: boolean) => void;
+}) {
   const [link, setLink] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [duration, setDuration] = useState<number | null>(null);
@@ -52,6 +59,7 @@ export function ChopForm({ balance }: { balance: number | null }) {
   function pickFile(event: React.ChangeEvent<HTMLInputElement>) {
     const picked = event.target.files?.[0] ?? null;
     setFile(picked);
+    onFileChange?.(picked !== null);
     setDuration(null);
     setNotice(null);
     if (!picked) return;
@@ -69,6 +77,7 @@ export function ChopForm({ balance }: { balance: number | null }) {
 
   function removeFile() {
     setFile(null);
+    onFileChange?.(false);
     setDuration(null);
     if (fileInput.current) fileInput.current.value = "";
   }
