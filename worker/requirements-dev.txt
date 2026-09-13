@@ -6,3 +6,4 @@ numpy
 soundfile
 librosa
 pytest
+supabase
