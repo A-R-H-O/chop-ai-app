@@ -16,22 +16,22 @@
 
 | # | task | state |
 | --- | --- | --- |
-| 1 | Synthetic audio fixtures with known ground truth | local |
-| 2 | `worker/pipeline/analyze.py` — bpm, key, onsets, drum hits | local |
-| 3 | `worker/pipeline/slice.py` — snap, quantize, fade, normalize, peaks | local |
-| 4 | `worker/cost.py` — GPU and token accounting | local |
-| 5 | `POST /api/jobs` — spend credits, create job | local |
-| 6 | Loader screen 03 over Realtime | local |
-| 7 | Seeded job and samples for UI work | local |
-| 8 | Web Audio engine and keyboard bindings | local |
-| 9 | Samples screen 05 and export zip | local |
-| 10 | Recommended screen 04 and retry | local |
-| 11 | `worker/chop_app.py` — Modal wrapper, stages 1, 2, 5 | blocked on Modal |
-| 12 | Stage 3 GPU analysis: whisper, CLAP | blocked on Modal |
-| 13 | Stage 4 Claude chop selection | blocked on Anthropic key |
-| 14 | Stage 0 cache by video id and content hash | blocked on Modal |
-| 15 | YouTube ingestion behind a feature flag | blocked on proxy |
-| 16 | `chop_economics` view and alert thresholds | local |
+| 1 | Synthetic audio fixtures with known ground truth | **done** |
+| 2 | `worker/pipeline/analyze.py` — bpm, key, onsets, drum hits | **done**, 17 tests |
+| 3 | `worker/pipeline/slice.py` — snap, quantize, fade, normalize, peaks | **done**, 22 tests |
+| 4 | `worker/cost.py` — GPU and token accounting | **done**, 14 tests |
+| 5 | `POST /api/jobs` — spend credits, create job | **done**, 9 pgTAP |
+| 6 | Loader screen 03 over Realtime | **done** |
+| 7 | Seeded job and samples for UI work | **done** |
+| 8 | Web Audio engine and keyboard bindings | **done**, 17 tests |
+| 9 | Samples screen 05 and export zip | **done** |
+| 10 | Recommended screen 04 and retry | **done** |
+| 11 | `worker/chop_app.py` — Modal wrapper | **written, never run** — Modal account |
+| 12 | Stage 3 GPU analysis: whisper, CLAP | **written, never run** — Modal account |
+| 13 | Stage 4 Claude chop selection | **written**, 19 tests on the fallback and prompt; the API call itself needs a key |
+| 14 | Stage 0 cache by video id and content hash | **written**, 12 tests on parsing and hashing; the cache path needs Modal |
+| 15 | YouTube ingestion | **written, never run** — residential proxy |
+| 16 | `chop_economics` view and alert thresholds | **done**, reproduces worker/cost.py independently |
 
 Tasks are ordered so every local task lands before its blocked dependents, and so the UI becomes demonstrable as early as Task 9.
 
