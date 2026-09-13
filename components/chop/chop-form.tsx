@@ -153,7 +153,11 @@ export function ChopForm({ balance }: { balance: number | null }) {
           onClick={chop}
           disabled={disabledReason !== null}
           title={disabledReason ?? undefined}
-          className="inline-flex h-10 items-center justify-center rounded-lg bg-chop-accent px-5 font-sans text-[15px] font-medium text-chop-on-accent transition-colors duration-150 ease-out hover:bg-[#ffeb4d] disabled:cursor-not-allowed disabled:opacity-40"
+          // Disabled state is a flat muted surface rather than a faded
+          // accent: the accent at 40% over the card reads as a muddy
+          // olive, which looks like a rendering fault rather than a
+          // deliberate state.
+          className="inline-flex h-10 items-center justify-center rounded-lg bg-chop-accent px-5 font-sans text-[15px] font-medium text-chop-on-accent transition-colors duration-150 ease-out hover:bg-[#ffeb4d] disabled:cursor-not-allowed disabled:bg-chop-option disabled:text-chop-muted"
         >
           chop it
         </button>

@@ -32,11 +32,13 @@ export function SignInButton() {
       type="button"
       onClick={signIn}
       disabled={pending}
-      // Google's metrics: 40px height, 12px symmetric padding, 10px gap
-      // beside an 18px mark, 14px medium at 0.25px tracking.
-      className="inline-flex h-10 items-center justify-center gap-2.5 rounded-button bg-white px-3 font-sans text-sm font-medium tracking-[0.25px] whitespace-nowrap text-[#1f1f1f] transition-[background-color,box-shadow] duration-150 ease-out hover:bg-[#f7f8f8] hover:shadow-[0_1px_3px_rgb(0_0_0/0.3)] focus-visible:ring-2 focus-visible:ring-chop-accent focus-visible:ring-offset-2 focus-visible:ring-offset-chop-ground focus-visible:outline-none disabled:opacity-60"
+      // Matches Google's published gsi-material-button metrics exactly:
+      // 40px height, 0 12px padding, 4px radius, 20px mark with 12px to
+      // its right, 14px at 0.25px tracking. Earlier passes used an 18px
+      // mark and a 10px gap, which read as cramped.
+      className="inline-flex h-10 items-center justify-center gap-3 rounded-[4px] bg-white px-3 font-sans text-sm font-medium tracking-[0.25px] whitespace-nowrap text-[#1f1f1f] transition-[background-color,box-shadow] duration-150 ease-out hover:bg-[#f7f8f8] hover:shadow-[0_1px_3px_rgb(0_0_0/0.3)] focus-visible:ring-2 focus-visible:ring-chop-accent focus-visible:ring-offset-2 focus-visible:ring-offset-chop-ground focus-visible:outline-none disabled:opacity-60"
     >
-      <GoogleLogo />
+      <GoogleLogo size={20} />
       Sign in with Google
     </button>
   );

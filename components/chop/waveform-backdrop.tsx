@@ -13,15 +13,19 @@
  * random so server and client markup match.
  */
 const DESKTOP_BARS = 64;
-const MOBILE_BARS = 26;
+
 
 function baseScale(index: number, total: number) {
   // Two offset sine waves, so the row reads as an uneven waveform rather
-  // than a repeating pattern. Capped at 0.6 so the animation's 1.6x peak
-  // cannot exceed 1 and clip against the container.
+  // than a repeating pattern.
+  //
+  // Kept short on purpose. The handoff's resting state is scaleY(0.2);
+  // an earlier pass ranged up to 0.6 and animated to 0.96, which made the
+  // backdrop tall enough to fight the heading for attention instead of
+  // sitting behind it. Range here is 0.10 to 0.32, peaking at 0.45.
   const a = Math.sin((index / total) * Math.PI * 6);
   const b = Math.sin((index / total) * Math.PI * 13 + 1.7);
-  return 0.14 + ((a + b + 2) / 4) * 0.46;
+  return 0.1 + ((a + b + 2) / 4) * 0.22;
 }
 
 function Bars({ count, gap }: { count: number; gap: string }) {
@@ -45,13 +49,16 @@ function Bars({ count, gap }: { count: number; gap: string }) {
   );
 }
 
+/**
+ * Desktop only. The handoff shows a 26-bar version on mobile, but at
+ * 390px the form card covers all but ~24px of gutter either side, so it
+ * renders as two orphaned stubs that read as a rendering fault rather
+ * than a backdrop. Nothing is lost by dropping it at that width.
+ */
 export function WaveformBackdrop() {
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 select-none">
-      <div className="h-[340px] px-4 md:hidden">
-        <Bars count={MOBILE_BARS} gap="4px" />
-      </div>
-      <div className="hidden h-[440px] px-10 md:block">
+    <div className="pointer-events-none absolute inset-x-0 top-1/2 hidden -translate-y-1/2 select-none md:block">
+      <div className="h-[440px] px-10">
         <Bars count={DESKTOP_BARS} gap="6px" />
       </div>
     </div>

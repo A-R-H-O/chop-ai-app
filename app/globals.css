@@ -95,7 +95,7 @@
       transform: scaleY(var(--bar-base, 0.3));
     }
     50% {
-      transform: scaleY(calc(var(--bar-base, 0.6) * 1.6));
+      transform: scaleY(calc(var(--bar-base, 0.3) * 1.4));
     }
   }
 }
