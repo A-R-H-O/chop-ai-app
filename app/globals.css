@@ -84,6 +84,20 @@
   --shadow-surface: inset 0 0 0 1px rgb(254 252 236 / 0.16);
   --shadow-dialog:
     inset 0 0 0 1px rgb(254 252 236 / 0.16), 0 24px 60px rgb(0 0 0 / 0.6);
+
+  /* Waveform bars breathe from their own height, carried in --bar-base,
+     so the row keeps its uneven shape instead of flattening to uniform. */
+  --animate-chop-eq: chop-eq 2.4s ease-in-out infinite;
+
+  @keyframes chop-eq {
+    0%,
+    100% {
+      transform: scaleY(var(--bar-base, 0.3));
+    }
+    50% {
+      transform: scaleY(calc(var(--bar-base, 0.6) * 1.6));
+    }
+  }
 }
 
 /*

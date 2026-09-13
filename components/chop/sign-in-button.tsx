@@ -32,7 +32,9 @@ export function SignInButton() {
       type="button"
       onClick={signIn}
       disabled={pending}
-      className="inline-flex h-10 items-center gap-3 rounded-button bg-white pr-4 pl-3 font-sans text-sm font-medium text-[#1f1f1f] transition-[background-color,box-shadow] duration-150 ease-out hover:bg-[#f7f8f8] hover:shadow-[0_1px_3px_rgb(0_0_0/0.3)] focus-visible:ring-2 focus-visible:ring-chop-accent focus-visible:ring-offset-2 focus-visible:ring-offset-chop-ground focus-visible:outline-none disabled:opacity-60"
+      // Google's metrics: 40px height, 12px symmetric padding, 10px gap
+      // beside an 18px mark, 14px medium at 0.25px tracking.
+      className="inline-flex h-10 items-center justify-center gap-2.5 rounded-button bg-white px-3 font-sans text-sm font-medium tracking-[0.25px] whitespace-nowrap text-[#1f1f1f] transition-[background-color,box-shadow] duration-150 ease-out hover:bg-[#f7f8f8] hover:shadow-[0_1px_3px_rgb(0_0_0/0.3)] focus-visible:ring-2 focus-visible:ring-chop-accent focus-visible:ring-offset-2 focus-visible:ring-offset-chop-ground focus-visible:outline-none disabled:opacity-60"
     >
       <GoogleLogo />
       Sign in with Google
