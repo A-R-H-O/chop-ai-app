@@ -117,18 +117,33 @@ def compute_peaks(path: str, buckets: int = 24) -> list[float]:
     return [round(float(v / highest), 4) for v in values]
 
 
+def format_key_for_filename(key: str) -> str:
+    """Compact, URL-safe spelling of a key.
+
+    The sharp sign is deliberately rewritten to "s" rather than kept.
+    A literal '#' in a filename begins a fragment in a URL, so a sample
+    named C#major silently 404s when the browser requests it — it asks
+    for everything up to the hash and nothing after. Musicians read "Cs"
+    as C sharp without difficulty; a broken download is harder to read.
+    """
+    root, _, quality = key.partition(" ")
+    root = root.replace("#", "s").replace("♯", "s").replace("b", "f")
+    short = {"major": "maj", "minor": "min"}.get(quality, quality)
+    return f"{root}{short}" if short else root
+
+
 def sample_filename(
     index: int, name: str, bpm: float | None, key: str | None
 ) -> str:
-    """A name that survives every filesystem and still says what it is
-    once it has been dragged into a DAW and divorced from our UI."""
+    """A name that survives every filesystem and every URL, and still says
+    what it is once dragged into a DAW and divorced from our UI."""
     slug = re.sub(r"[^a-zA-Z0-9]+", "_", name).strip("_").lower() or "chop"
     parts = [f"{index:02d}", slug]
 
     if bpm:
         parts.append(f"{round(bpm)}bpm")
     if key:
-        parts.append(re.sub(r"[^a-zA-Z0-9#]+", "", key))
+        parts.append(format_key_for_filename(key))
 
     return "_".join(parts) + ".wav"
 

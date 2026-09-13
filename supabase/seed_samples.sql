@@ -27,9 +27,9 @@ insert into samples (
   peaks, rank, recommended
 )
 values
-  ('00000000-0000-4000-8000-000000000010', 'dust break', 'drums', 232, 2925, 1.0, 'the four-on-the-floor section, dry and close', 'seed-samples/01_dust_break_89bpm_C#major.wav', '[0.4064, 0.1061, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0358, 0.0, 0.0, 0.0, 0.0, 0.4064, 0.0842, 0.0, 0.0, 0.0, 1.0, 0.789, 0.0177, 0.0, 0.0, 0.0, 0.4064]'::jsonb, 1, true),
-  ('00000000-0000-4000-8000-000000000010', 'kick one shot', 'drums', 232, 1578, 0.5, 'the cleanest single kick, no tail', 'seed-samples/02_kick_one_shot_89bpm_C#major.wav', '[0.4064, 0.2203, 0.1061, 0.0432, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.1637, 0.0358, 0.007, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]'::jsonb, 2, true),
-  ('00000000-0000-4000-8000-000000000010', 'snare roll', 'drums', 905, 3599, 1.0, 'the backbeat with the room left on it', 'seed-samples/03_snare_roll_89bpm_C#major.wav', '[1.0, 0.0358, 0.0, 0.0, 0.0, 0.0, 0.4064, 0.0842, 0.0, 0.0, 0.0, 1.0, 0.789, 0.0177, 0.0, 0.0, 0.0, 0.4064, 0.3656, 0.0668, 0.0, 0.0, 0.0, 1.0]'::jsonb, 3, true)
+  ('00000000-0000-4000-8000-000000000010', 'dust break', 'drums', 232, 2925, 1.0, 'the four-on-the-floor section, dry and close', 'seed-samples/01_dust_break_89bpm_Csmaj.wav', '[0.4064, 0.1061, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0358, 0.0, 0.0, 0.0, 0.0, 0.4064, 0.0842, 0.0, 0.0, 0.0, 1.0, 0.789, 0.0177, 0.0, 0.0, 0.0, 0.4064]'::jsonb, 1, true),
+  ('00000000-0000-4000-8000-000000000010', 'kick one shot', 'drums', 232, 1578, 0.5, 'the cleanest single kick, no tail', 'seed-samples/02_kick_one_shot_89bpm_Csmaj.wav', '[0.4064, 0.2203, 0.1061, 0.0432, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.1637, 0.0358, 0.007, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]'::jsonb, 2, true),
+  ('00000000-0000-4000-8000-000000000010', 'snare roll', 'drums', 905, 3599, 1.0, 'the backbeat with the room left on it', 'seed-samples/03_snare_roll_89bpm_Csmaj.wav', '[1.0, 0.0358, 0.0, 0.0, 0.0, 0.0, 0.4064, 0.0842, 0.0, 0.0, 0.0, 1.0, 0.789, 0.0177, 0.0, 0.0, 0.0, 0.4064, 0.3656, 0.0668, 0.0, 0.0, 0.0, 1.0]'::jsonb, 3, true)
 on conflict do nothing;
 
 insert into job_metrics (

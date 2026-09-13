@@ -135,7 +135,20 @@ class TestBuildZip:
 class TestSampleFilename:
     def test_builds_a_daw_friendly_name(self):
         name = slicer.sample_filename(1, "horn stab", 92.0, "C minor")
-        assert name == "01_horn_stab_92bpm_Cminor.wav"
+        assert name == "01_horn_stab_92bpm_Cmin.wav"
+
+    def test_never_emits_a_hash_which_would_truncate_a_url(self):
+        # A literal '#' begins a fragment, so the browser would request
+        # everything before it and 404. This was a real bug.
+        name = slicer.sample_filename(1, "horn stab", 92.0, "C# major")
+        assert "#" not in name
+        assert name == "01_horn_stab_92bpm_Csmaj.wav"
+
+    def test_is_safe_to_drop_straight_into_a_url(self):
+        from urllib.parse import quote
+
+        name = slicer.sample_filename(3, "tape vocal", 90.0, "F# minor")
+        assert quote(name) == name
 
     def test_strips_characters_that_break_filesystems(self):
         name = slicer.sample_filename(2, "vocal / chop: take*2", 90.0, None)
