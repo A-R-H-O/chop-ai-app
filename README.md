@@ -16,44 +16,89 @@ So "dusty, melancholy, chop the horns, keep the hiss" gets an actual answer inst
 
 | layer | tech |
 | --- | --- |
-| UI and API | Next.js App Router, TypeScript, React, Tailwind, shadcn/ui, on Vercel |
+| UI and API | Next.js 16 App Router, TypeScript, Tailwind v4, shadcn/ui on Radix, on Vercel |
 | auth, database, storage | Supabase, Google OAuth, Postgres with RLS |
-| audio and ML | Modal GPU function running Demucs, faster-whisper, CLAP, librosa, ffmpeg |
-| chop selection | Claude, via tool use for a schema-enforced result |
+| audio and ML | Modal L4 GPU running Demucs, faster-whisper, CLAP, librosa, ffmpeg |
+| chop selection | Claude Opus 5 at low effort, via tool use for a schema-enforced result |
 | payments | LemonSqueezy, one-time credit packs |
 | playback | Web Audio API |
 
 ## Pipeline
 
-Five stages, which are the five rows the loader screen shows you in real time over Supabase Realtime:
+Five stages, which are the five rows the loader shows you in real time over Supabase Realtime:
 
-1. **pulled audio** yt-dlp or your upload, normalized to 44.1kHz wav
-2. **separated stems** Demucs htdemucs into drums, bass, vocals, other
-3. **reading instruments** bpm, bar grid, key, per-stem onsets, kick/snare/hat classification, timestamped lyrics, CLAP mood and texture scores
-4. **finding chops** Claude reads the analysis plus your prompt and proposes up to 8 chops with reasons
-5. **cutting on the grid** onset-snapped, bar-quantized, de-clicked, normalized, 24-bit wav, zipped
+1. **pulled audio** — yt-dlp or your upload, normalised to 44.1kHz wav
+2. **separated stems** — Demucs htdemucs into drums, bass, vocals, other
+3. **reading instruments** — bpm, bar grid, key, per-stem onsets, kick/snare/hat classification, timestamped lyrics, CLAP mood and texture scores
+4. **finding chops** — Claude reads the analysis plus your prompt and proposes up to 8 chops with reasons
+5. **cutting on the grid** — onset-snapped, bar-quantized, de-clicked, normalised to -1 dBFS, 24-bit wav, zipped
+
+A cache keyed by YouTube video id or audio content hash lets a repeat of the same song skip stages 1 through 3 entirely, which is the whole GPU portion.
 
 ## Credits
 
-5 credits a chop, 5 for a retry. 20 free credits a day, which is four chops. Packs are $4 for 100, $9 for 300, $25 for 1000. Credits do not expire.
+8 credits a chop, 8 for a retry. 8 free credits a day, which is one chop. Packs are $4 for 100, $9 for 300, $25 for 1000. Credits do not expire.
 
 Balances are server-owned. A single Postgres function takes the row lock, applies the daily grant if it is due, checks the balance, decrements, and writes an append-only ledger entry, all in the same transaction that creates the job. A job cannot exist without having been paid for, and credits cannot be taken without a job. If the pipeline fails you get the credits back.
+
+## Unit economics
+
+Measured rather than estimated. `select * from chop_economics` reports cost per chop, cache hit rate, and gross margin per pack from real job metrics.
+
+At current prices a cache miss costs about $0.066 and a hit about $0.055, against $0.20 to $0.33 revenue per chop, so 67 to 80 percent gross margin. The Modal GPU rate in `worker/cost.py` is still a placeholder awaiting a real invoice and is marked as such.
 
 ## Repo layout
 
 ```
 app/                next.js routes and api handlers
-components/         shadcn primitives and chop.ai components
-lib/                supabase clients, web audio engine, lemonsqueezy
-supabase/           sql migrations
-worker/             modal python app and pipeline stages
-design/             design handoff this was built from
-docs/               design spec and implementation plan
+components/chop/    the six screens from the handoff
+lib/                supabase clients, credits, web audio engine, lemonsqueezy
+supabase/           migrations, pgTAP tests, dev seed
+worker/             the Modal app
+  pipeline/         stage functions, pure over file paths
+  tests/            pytest plus generated fixtures
+design/             the design handoff this was built from
+docs/               design spec and implementation plans
 ```
+
+## Development
+
+```bash
+npm install
+npx supabase start          # needs Docker running
+npx supabase db reset       # migrations + dev seed
+cp .env.local.example .env.local   # fill in from `supabase start` output
+npm run dev
+```
+
+The Python worker is separate and needs Python 3.11:
+
+```bash
+python3.11 -m venv worker/.venv
+worker/.venv/bin/pip install -r worker/requirements-dev.txt
+worker/.venv/bin/python worker/tests/make_fixtures.py
+worker/.venv/bin/python -m pytest worker/tests
+```
+
+`requirements-dev.txt` deliberately omits torch, demucs, faster-whisper and transformers. They are multi-gigabyte, useless without a GPU, and only ever imported inside the Modal image, so the stage functions run and are tested on a laptop without them.
+
+### Tests
+
+```bash
+npm test                    # 59 vitest
+npx supabase test db        # 35 pgTAP
+worker/.venv/bin/python -m pytest worker/tests   # 84 pytest
+```
+
+Audio fixtures are generated by a committed script rather than checked in, so the ground truth is visible in code: a click track at a known tempo has exactly one right answer for bpm and onset spacing, and a kick/snare pattern has one right answer per hit.
 
 ## Status
 
-In development. Design spec is at [`docs/superpowers/specs/2026-09-11-chop-ai-design.md`](docs/superpowers/specs/2026-09-11-chop-ai-design.md).
+In development. What works end to end today: Google sign-in, the credit economy, the top up dialog and LemonSqueezy checkout, job creation with transactional credit spending, the loader over Realtime, and the recommended and samples screens with keyboard playback and zip export.
+
+What is written but has never run: the GPU pipeline, which needs a Modal account; Claude chop selection, which needs an Anthropic API key; and YouTube ingestion, which needs a residential proxy. Each names the credential it waits on in its module docstring.
+
+Design spec: [`docs/superpowers/specs/2026-09-11-chop-ai-design.md`](docs/superpowers/specs/2026-09-11-chop-ai-design.md).
 
 ## Notes
 

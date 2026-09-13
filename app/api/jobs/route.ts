@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { CHOP_COST } from "@/lib/credits/constants";
 import { capture } from "@/lib/analytics/posthog-server";
 import { EVENTS } from "@/lib/analytics/events";
+import { dispatchJob } from "@/lib/jobs/dispatch";
 
 interface CreateJobBody {
   sourceType?: string;
@@ -116,6 +117,11 @@ export async function POST(request: NextRequest) {
       balance_after: result.balance,
     },
   );
+
+  // Not awaited: the client should see the loader immediately, and
+  // dispatch failures are recorded on the job row rather than returned
+  // here, so the loader surfaces them like any other failure.
+  void dispatchJob(result.job_id);
 
   return NextResponse.json({
     jobId: result.job_id,
