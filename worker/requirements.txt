@@ -1,0 +1,13 @@
+# Installed into the Modal image. Everything in requirements-dev.txt plus
+# the GPU stack.
+numpy
+soundfile
+librosa
+pytest
+torch
+demucs
+faster-whisper
+transformers
+anthropic
+supabase
+yt-dlp

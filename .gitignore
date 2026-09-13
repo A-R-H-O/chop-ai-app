@@ -48,3 +48,8 @@ yarn-error.log*
 .playwright-mcp/
 *.png
 !public/**/*.png
+
+# python worker
+worker/.venv/
+worker/**/__pycache__/
+worker/tests/fixtures/*.wav

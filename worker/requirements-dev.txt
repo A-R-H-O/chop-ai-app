@@ -1,0 +1,8 @@
+# Local test dependencies only. The GPU stack (torch, demucs,
+# faster-whisper, transformers) is deliberately absent: it is multi-
+# gigabyte, useless without a card, and only ever imported inside the
+# Modal image. See requirements.txt for what Modal installs.
+numpy
+soundfile
+librosa
+pytest
