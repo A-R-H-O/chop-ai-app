@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Download } from "lucide-react";
 import { SampleEngine, type TriggerSource } from "@/lib/audio/engine";
 import { keyForIndex, shouldTrigger, indexForKey } from "@/lib/audio/keys";
@@ -27,10 +27,9 @@ export function SamplesBoard({
 }) {
   const [playing, setPlaying] = useState<Set<string>>(new Set());
   const [ready, setReady] = useState(false);
-  const engineRef = useRef<SampleEngine | null>(null);
 
   const engine = useMemo(() => {
-    const instance = new SampleEngine({
+    return new SampleEngine({
       onPlay: (sampleId, trigger: TriggerSource) => {
         posthog.capture?.(EVENTS.samplePlayed, {
           job_id: jobId,
@@ -39,8 +38,6 @@ export function SamplesBoard({
         });
       },
     });
-    engineRef.current = instance;
-    return instance;
   }, [jobId]);
 
   // Decode every sample up front. A producer hitting a pad expects sound
@@ -57,7 +54,9 @@ export function SamplesBoard({
     };
   }, [engine, samples]);
 
-  useEffect(() => () => engineRef.current?.dispose(), []);
+  // Keyed on the engine, not empty: if jobId changes the previous
+  // engine is the one that must be disposed.
+  useEffect(() => () => engine.dispose(), [engine]);
 
   const toggle = useCallback(
     (sample: SampleRow, trigger: TriggerSource) => {

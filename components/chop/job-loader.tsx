@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Check } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -134,12 +135,12 @@ export function JobLoader({ initial }: { initial: JobSnapshot }) {
             ? "this chop took too long and was given up on. your credits have been returned."
             : (job.error ?? "something went wrong. your credits have been returned.")}
         </p>
-        <a
+        <Link
           href="/"
           className="mt-2 inline-flex h-10 w-fit items-center rounded-lg bg-chop-accent px-5 font-sans text-[15px] font-medium text-chop-on-accent"
         >
           try another
-        </a>
+        </Link>
       </div>
     );
   }

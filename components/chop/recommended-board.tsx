@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, RotateCw } from "lucide-react";
 import { SampleEngine, type TriggerSource } from "@/lib/audio/engine";
@@ -36,10 +37,9 @@ export function RecommendedBoard({
   const [topUpOpen, setTopUpOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
-  const engineRef = useRef<SampleEngine | null>(null);
 
   const engine = useMemo(() => {
-    const instance = new SampleEngine({
+    return new SampleEngine({
       onPlay: (sampleId, trigger: TriggerSource) =>
         posthog.capture?.(EVENTS.samplePlayed, {
           job_id: jobId,
@@ -48,8 +48,6 @@ export function RecommendedBoard({
           screen: "recommended",
         }),
     });
-    engineRef.current = instance;
-    return instance;
   }, [jobId]);
 
   useEffect(() => {
@@ -58,7 +56,9 @@ export function RecommendedBoard({
     );
   }, [engine, samples]);
 
-  useEffect(() => () => engineRef.current?.dispose(), []);
+  // Keyed on the engine, not empty: if jobId changes the previous
+  // engine is the one that must be disposed.
+  useEffect(() => () => engine.dispose(), [engine]);
 
   function toggle(sample: SampleRow) {
     if (engine.isPlaying(sample.id)) {
@@ -159,13 +159,13 @@ export function RecommendedBoard({
             <RotateCw size={20} strokeWidth={2.4} />
           </button>
 
-          <a
+          <Link
             href={`/jobs/${jobId}/samples`}
             className="inline-flex h-11 shrink-0 items-center gap-2 rounded-full bg-chop-accent px-5 font-sans text-sm font-medium text-chop-on-accent hover:bg-[#ffeb4d]"
           >
             continue
             <ArrowRight size={16} strokeWidth={2} />
-          </a>
+          </Link>
         </div>
       </div>
 
