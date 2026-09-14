@@ -42,8 +42,10 @@ Ordered so each one unblocks the next.
       has never run. Test mode first, then one real $4 purchase before
       anyone else can. `CREDENTIALS.md` §5.
 
-- [ ] **Wire Sentry.** `npx @sentry/wizard@latest -i nextjs`. Right now
-      a server exception in production goes nowhere. `CREDENTIALS.md` §7a.
+- [ ] **Create a Sentry project and paste the DSN into Vercel.** The
+      SDK and config are already in the repo and stay inert without it,
+      so this is one environment variable, not an integration.
+      `CREDENTIALS.md` §7a.
 
 - [ ] **Register a DMCA agent.** The takedown page and process are
       written; designating the agent with the US Copyright Office is
@@ -52,11 +54,6 @@ Ordered so each one unblocks the next.
 - [ ] **Clear the GitHub Actions billing lock.** CI is correct and has
       never run. Public repos get unlimited free minutes once the lock
       is gone. `CREDENTIALS.md` §9.
-
-- [ ] **Decide the bad-chop refund path.** If the model picks chops
-      somebody hates, their only move today is retry at full cost. That
-      is a chargeback generator. A free first retry, or a "this was bad"
-      button that returns credits. Your call; the build is small.
 
 ---
 
@@ -78,6 +75,13 @@ Ordered so each one unblocks the next.
       the storage API so files are freed rather than orphaned.
 
 - [x] YouTube off by default, enforced server side.
+
+- [x] **"this wasn't it" returns the credits** for a chop that finished
+      but came out wrong, once per chop, three a day. Records why, which
+      is the part worth having: `chop_rejections` puts the producer's
+      reason next to the prompt that produced it.
+
+- [x] Sentry SDK and config wired, inert until a DSN exists.
 
 - [x] **Modal deployed and proven end to end.** Endpoint at
       `https://a-r-h-o--chop-ai-start.modal.run`, secret `chop-ai`

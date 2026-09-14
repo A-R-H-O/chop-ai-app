@@ -16,6 +16,7 @@ export const EVENTS = {
   packSelected: "pack_selected",
   checkoutStarted: "checkout_started",
   purchaseCompleted: "purchase_completed",
+  chopRejected: "chop_rejected",
 
   // Scheduled work. These are the only events nobody triggers, and the
   // only ones whose absence is itself the signal: a sweep that stops

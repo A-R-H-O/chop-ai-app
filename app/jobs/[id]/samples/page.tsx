@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { signSamples, signZip } from "@/lib/jobs/samples";
 import { SamplesBoard } from "@/components/chop/samples-board";
+import { RejectChop } from "@/components/chop/reject-chop";
 
 export default async function SamplesPage({
   params,
@@ -18,7 +19,7 @@ export default async function SamplesPage({
 
   const { data: job } = await supabase
     .from("jobs")
-    .select("id,status,bpm,music_key,zip_path")
+    .select("id,status,bpm,music_key,zip_path,rejected_at")
     .eq("id", id)
     .single();
 
@@ -43,6 +44,18 @@ export default async function SamplesPage({
         zipUrl={zipUrl}
         jobId={id}
       />
+
+      {/* Under the export, because this is the thing you reach for after
+          listening and finding it was not what you asked for. */}
+      <div className="mt-6">
+        {job.rejected_at ? (
+          <span className="font-sans text-sm text-chop-muted">
+            credits returned for this chop
+          </span>
+        ) : (
+          <RejectChop jobId={id} />
+        )}
+      </div>
     </main>
   );
 }
