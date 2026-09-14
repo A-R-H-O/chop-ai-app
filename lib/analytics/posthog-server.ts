@@ -20,15 +20,22 @@ function getClient(): PostHog | null {
   return client;
 }
 
+/**
+ * Scheduled work belongs to no one, so it gets one stable identity of
+ * its own rather than being attributed to whichever user's job happened
+ * to trip it.
+ */
+export const SYSTEM_ACTOR = "system";
+
 /** Identify by the Supabase user id so browser, API, and worker funnels join. */
 export async function capture(
-  userId: string,
+  userId: string | null,
   event: EventName,
   properties: Record<string, unknown> = {},
 ) {
   const posthog = getClient();
   if (!posthog) return;
 
-  posthog.capture({ distinctId: userId, event, properties });
+  posthog.capture({ distinctId: userId ?? SYSTEM_ACTOR, event, properties });
   await posthog.flush();
 }

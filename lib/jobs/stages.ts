@@ -38,9 +38,17 @@ export function stageStates(
   ) as Record<StageId, StageState>;
 }
 
-/** A job stuck queued or running this long is treated as failed by the
- *  client, so a worker that died silently does not spin forever. */
-export const STALE_AFTER_MS = 15 * 60 * 1000;
+/**
+ * A job stuck queued or running this long is treated as failed by the
+ * client, so a worker that died silently does not spin forever.
+ *
+ * Deliberately longer than the server's own staleness window of sixteen
+ * minutes (stale_job_after() in migration 0009). The sweeper is what
+ * actually returns the credits; this is only the display falling back
+ * when it has not got there yet. If this fired first the screen would
+ * say the credits came back before anything had returned them.
+ */
+export const STALE_AFTER_MS = 20 * 60 * 1000;
 
 export function isStale(createdAt: string, status: JobStatus): boolean {
   if (status === "done" || status === "failed") return false;

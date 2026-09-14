@@ -16,6 +16,13 @@ export const EVENTS = {
   packSelected: "pack_selected",
   checkoutStarted: "checkout_started",
   purchaseCompleted: "purchase_completed",
+
+  // Scheduled work. These are the only events nobody triggers, and the
+  // only ones whose absence is itself the signal: a sweep that stops
+  // reporting has stopped running.
+  staleJobsSwept: "stale_jobs_swept",
+  objectsExpired: "objects_expired",
+  tooManyConcurrentChops: "too_many_concurrent_chops",
 } as const;
 
 export type EventName = (typeof EVENTS)[keyof typeof EVENTS];

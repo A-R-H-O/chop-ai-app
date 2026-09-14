@@ -175,6 +175,73 @@ key.
 
 ---
 
+## 7a. Sentry — server-side error reporting, not blocking
+
+Not wired yet. `SENTRY_DSN` is already in the hosted env file but nothing
+reads it: Sentry is not a dependency and there are no config files, so a
+server exception in production currently goes nowhere.
+
+1. https://sentry.io → create a Next.js project.
+2. Copy the DSN, then:
+
+   ```
+   npx @sentry/wizard@latest -i nextjs
+   ```
+
+   The wizard writes `instrumentation.ts`, the client and server configs,
+   and adds the DSN. Nothing in this repo has to change first.
+
+3. Into **Vercel**:
+
+   ```
+   SENTRY_DSN=https://...
+   NEXT_PUBLIC_SENTRY_DSN=https://...
+   ```
+
+PostHog answers "what are people doing"; Sentry answers "what is
+broken". The cron routes in section 7b are the ones most worth watching,
+because nobody is looking at them when they fail.
+
+---
+
+## 7b. CRON_SECRET — required, or the scheduled jobs are disabled
+
+Two scheduled routes exist: `/api/cron/reconcile` returns credits for
+jobs that died without saying so, and `/api/cron/retention` deletes
+expired uploads and samples. Both refuse every request unless
+`CRON_SECRET` matches, and both fail closed, so leaving this unset means
+they never run rather than that anyone can call them.
+
+Generate one and put it in **Vercel**:
+
+```
+CRON_SECRET=$(openssl rand -hex 32)
+```
+
+The schedules are in `vercel.json` and need no setup beyond deploying.
+
+If the reconcile job is not running, stale jobs keep the producer's
+credits and the failure screen tells them otherwise. Treat this as
+required, not optional.
+
+---
+
+## 7c. YOUTUBE — off by default
+
+YouTube ingestion is disabled unless explicitly switched on, because it
+has never run and it is the one path that fetches a recording server
+side. Upload works without it.
+
+To enable, once the proxy in section 6 exists, in **Vercel**:
+
+```
+NEXT_PUBLIC_YOUTUBE_ENABLED=true
+```
+
+The server checks this too, so the flag alone is the whole switch.
+
+---
+
 ## 8. Vercel billing — blocks the deploy
 
 `vercel link` fails with:
@@ -222,7 +289,16 @@ LEMONSQUEEZY_VARIANT_300
 LEMONSQUEEZY_VARIANT_1000
 NEXT_PUBLIC_POSTHOG_KEY
 NEXT_PUBLIC_POSTHOG_HOST
+POSTHOG_API_KEY
+SENTRY_DSN
+NEXT_PUBLIC_SENTRY_DSN
+CRON_SECRET
+NEXT_PUBLIC_YOUTUBE_ENABLED
 ```
+
+`CRON_SECRET` is the one on that list people skip. Without it the stale
+job sweeper never runs, and a chop whose worker died keeps the credits
+while telling the producer it gave them back.
 
 **Modal secret `chop-ai`**:
 

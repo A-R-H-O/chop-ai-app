@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { CHOP_COST, isBlocked } from "@/lib/credits/constants";
 import { AudioFileCard } from "./audio-file-card";
 import { TopUpDialog } from "./top-up-dialog";
+import { YOUTUBE_ENABLED } from "@/lib/jobs/sources";
 
 const ACCEPT = "audio/*,.wav,.mp3,.flac,.aiff,.m4a,.ogg";
 
@@ -52,9 +53,10 @@ export function ChopForm({
 
   const signedOut = balance === null;
   const blocked = !signedOut && isBlocked(balance);
-  const linkId = youtubeVideoId(link);
+  const linkId = YOUTUBE_ENABLED ? youtubeVideoId(link) : null;
   const hasSource = file !== null || linkId !== null;
-  const linkLooksWrong = link.trim().length > 0 && linkId === null;
+  const linkLooksWrong =
+    YOUTUBE_ENABLED && link.trim().length > 0 && linkId === null;
 
   function pickFile(event: React.ChangeEvent<HTMLInputElement>) {
     const picked = event.target.files?.[0] ?? null;
@@ -146,7 +148,9 @@ export function ChopForm({
     : blocked
       ? `you need ${CHOP_COST} credits to chop`
       : !hasSource
-        ? "paste a youtube link or upload audio first"
+        ? YOUTUBE_ENABLED
+          ? "paste a youtube link or upload audio first"
+          : "upload audio first"
         : null;
 
   return (
@@ -157,7 +161,7 @@ export function ChopForm({
           durationSeconds={duration}
           onRemove={removeFile}
         />
-      ) : (
+      ) : YOUTUBE_ENABLED ? (
         <label className="flex min-h-14 items-center gap-3">
           <span className="flex shrink-0 text-chop-accent">
             <Link2 size={24} strokeWidth={2} />
@@ -174,6 +178,18 @@ export function ChopForm({
             aria-label="youtube link"
             className="min-w-0 flex-1 bg-transparent font-sans text-lg leading-7 text-chop-ink placeholder:text-chop-accent focus:outline-none"
           />
+        </label>
+      ) : (
+        <label
+          htmlFor="audio-upload"
+          className="flex min-h-14 cursor-pointer items-center gap-3"
+        >
+          <span className="flex shrink-0 text-chop-accent">
+            <Upload size={24} strokeWidth={2} />
+          </span>
+          <span className="font-sans text-lg leading-7 text-chop-accent">
+            drop in a track
+          </span>
         </label>
       )}
 

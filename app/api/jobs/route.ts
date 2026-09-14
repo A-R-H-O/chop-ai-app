@@ -5,6 +5,7 @@ import { CHOP_COST } from "@/lib/credits/constants";
 import { capture } from "@/lib/analytics/posthog-server";
 import { EVENTS } from "@/lib/analytics/events";
 import { dispatchJob } from "@/lib/jobs/dispatch";
+import { YOUTUBE_ENABLED, YOUTUBE_DISABLED_MESSAGE } from "@/lib/jobs/sources";
 
 interface CreateJobBody {
   sourceType?: string;
@@ -60,6 +61,16 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Checked here rather than only in the form. The form hiding a field
+  // stops nobody from posting to this route directly, and this is the
+  // path that makes us fetch a recording we were not handed.
+  if (body.sourceType === "youtube" && !YOUTUBE_ENABLED) {
+    return NextResponse.json(
+      { error: YOUTUBE_DISABLED_MESSAGE },
+      { status: 403 },
+    );
+  }
+
   const prompt = (body.prompt ?? "").trim();
   if (!prompt) {
     return NextResponse.json({ error: "a prompt is required" }, { status: 400 });
@@ -101,6 +112,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "insufficient credits", needed: CHOP_COST },
         { status: 402 },
+      );
+    }
+    // 429 rather than 400: nothing is wrong with the request, there are
+    // just too many of them at once, and waiting fixes it.
+    if (error.message.includes("too many chops running")) {
+      await capture(user.id, EVENTS.tooManyConcurrentChops);
+      return NextResponse.json(
+        { error: "you already have chops running. let those finish first." },
+        { status: 429 },
       );
     }
     return NextResponse.json({ error: error.message }, { status: 400 });
