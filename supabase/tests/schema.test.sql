@@ -12,10 +12,13 @@ select is(
   'all eight tables exist'
 );
 
+-- Counted rather than listed on purpose: a new table that forgets RLS
+-- fails this, which is the whole point of asserting it this way.
+-- retained_purchases (0010) is the ninth.
 select is(
   (select count(*)::integer from pg_tables
    where schemaname = 'public' and rowsecurity = true),
-  8,
+  9,
   'row level security is enabled on every public table'
 );
 

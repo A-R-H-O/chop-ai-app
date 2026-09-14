@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { HeaderCredits } from "./header-credits";
 import { SignInButton } from "./sign-in-button";
 
@@ -20,7 +21,19 @@ export function AppHeader({ balance }: { balance: number | null }) {
         priority
         className="h-[18px] w-auto invert md:h-[22px]"
       />
-      {balance === null ? <SignInButton /> : <HeaderCredits balance={balance} />}
+      {balance === null ? (
+        <SignInButton />
+      ) : (
+        <div className="flex items-center gap-4 md:gap-6">
+          <Link
+            href="/account"
+            className="font-sans text-sm text-chop-muted transition-colors duration-150 ease-out hover:text-chop-ink"
+          >
+            account
+          </Link>
+          <HeaderCredits balance={balance} />
+        </div>
+      )}
     </header>
   );
 }
