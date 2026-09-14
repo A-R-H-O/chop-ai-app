@@ -3,6 +3,10 @@
 Every account and secret chop.ai needs, what it unblocks, and exactly
 where the value goes. Ordered by what is blocking the most.
 
+Two of these are billing locks rather than missing keys, and they are the
+only reason nothing is live: **Vercel is suspended (402)** and GitHub
+Actions is locked. Both are sections 8 and 9.
+
 The app reads its config from `.env.local` in development and from
 Vercel's environment variables in production. The worker reads its config
 from a Modal secret. Nothing is shared between them except the Supabase
@@ -171,7 +175,25 @@ key.
 
 ---
 
-## 8. GitHub Actions billing — blocks CI
+## 8. Vercel billing — blocks the deploy
+
+`vercel link` fails with:
+
+```
+Error: Your account has been suspended. To reactivate your
+subscription, add a valid payment method. (402)
+```
+
+https://vercel.com/teams/huddle-s-projects1/settings/billing
+
+Nothing can deploy until this clears. Once it does, the app itself is
+ready: the hosted Supabase project is fully migrated (all 8, verified
+with `supabase migration list`), so the only remaining work is pasting
+the environment variables from the table below.
+
+---
+
+## 9. GitHub Actions billing — blocks CI
 
 `.github/workflows/ci.yml` is correct but every run fails with "your
 account is locked due to a billing issue".
