@@ -1,10 +1,13 @@
 """Stage 2: separate the mix into drums, bass, vocals, and other.
 
-The only stage that genuinely needs a GPU. Imports are deliberately lazy
-so the rest of the pipeline stays importable, and testable, on a machine
-with no torch installed.
+The heaviest stage. Imports are deliberately lazy so the rest of the
+pipeline stays importable, and testable, on a machine with no torch
+installed.
 
-NOT YET RUN: requires a Modal account.
+Verified on Apple MPS: separating a synthetic drum pattern puts
+essentially all the energy in the drums stem and leaves the rest at
+separation-noise level. A GPU is a speed requirement, not a correctness
+one, so device() falls back to cpu rather than refusing.
 """
 
 from __future__ import annotations
@@ -42,6 +45,22 @@ def rms(path: str) -> float:
     return float(np.sqrt(np.mean(audio.astype("float64") ** 2)))
 
 
+def device() -> str:
+    """Where demucs should run.
+
+    cuda on the Modal L4, mps on an Apple machine, cpu as the honest
+    fallback. Letting demucs pick for itself lands on cpu under MPS,
+    which is the difference between a minute and ten.
+    """
+    import torch
+
+    if torch.cuda.is_available():
+        return "cuda"
+    if torch.backends.mps.is_available():
+        return "mps"
+    return "cpu"
+
+
 def separate(src: str, dst_dir: str) -> dict[str, str]:
     """Run demucs, writing one wav per stem into dst_dir.
 
@@ -51,13 +70,18 @@ def separate(src: str, dst_dir: str) -> dict[str, str]:
     """
     import shutil
     import subprocess
+    import sys
 
     os.makedirs(dst_dir, exist_ok=True)
 
     subprocess.run(
         [
-            "python", "-m", "demucs",
+            # sys.executable, not "python": the interpreter running this
+            # is the one with demucs installed. Bare "python" resolves
+            # against PATH and finds whatever the shell happens to have.
+            sys.executable, "-m", "demucs",
             "-n", MODEL,
+            "-d", device(),
             "--out", dst_dir,
             "--filename", "{stem}.{ext}",
             src,

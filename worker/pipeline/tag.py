@@ -6,7 +6,9 @@ and the drum map from analyze.py, this is everything the selector reads.
 
 Imports are lazy so the module is importable without torch.
 
-NOT YET RUN: requires a Modal account.
+Verified on Apple MPS. Two API shapes have to be tolerated because
+transformers 5 changed both: get_*_features returns a model output
+rather than a tensor, and ClapProcessor renamed `audios` to `audio`.
 """
 
 from __future__ import annotations
@@ -16,6 +18,15 @@ WHISPER_COMPUTE = "int8"
 
 CLAP_MODEL = "laion/clap-htsat-unfused"
 CLAP_SAMPLE_RATE = 48_000
+
+# The vocabulary every window is scored against. Deliberately words a
+# producer would actually type, in opposing pairs, so a high score on one
+# means something relative to its opposite rather than in isolation.
+CLAP_TAGS = [
+    "dusty", "warm", "bright", "dark", "melancholy", "euphoric", "aggressive",
+    "gentle", "lo-fi", "clean", "distorted", "spacious", "tight", "vintage",
+    "modern", "sparse", "dense", "hypnotic", "urgent", "relaxed",
+]
 
 # How wide a window CLAP scores, and how far it steps. Windows overlap so
 # a moment on a boundary is not missed by both.
@@ -52,6 +63,24 @@ def transcribe(path: str) -> list[dict]:
     return lines
 
 
+def _embedding(output):
+    """The projected embedding, whichever shape transformers hands back.
+
+    transformers 5 changed ClapModel.get_text_features and
+    get_audio_features to return a BaseModelOutputWithPooling rather than
+    the tensor itself, with the joint-space vector on .pooler_output.
+    Accepting both keeps this working against whatever the Modal image
+    resolves to.
+    """
+    pooled = getattr(output, "pooler_output", None)
+    return output if pooled is None else pooled
+
+
+def _unit(tensor):
+    """L2-normalised, so a dot product is a cosine similarity."""
+    return tensor / tensor.norm(dim=-1, keepdim=True)
+
+
 def tag_windows(path: str, vocabulary: list[str]) -> list[dict]:
     """Score overlapping windows against the tag vocabulary.
 
@@ -77,8 +106,7 @@ def tag_windows(path: str, vocabulary: list[str]) -> list[dict]:
 
     text_inputs = processor(text=vocabulary, return_tensors="pt", padding=True)
     with torch.no_grad():
-        text_embeds = model.get_text_features(**text_inputs)
-    text_embeds = text_embeds / text_embeds.norm(dim=-1, keepdim=True)
+        text_embeds = _unit(_embedding(model.get_text_features(**text_inputs)))
 
     window = int(WINDOW_S * sr)
     hop = int(HOP_S * sr)
@@ -90,11 +118,10 @@ def tag_windows(path: str, vocabulary: list[str]) -> list[dict]:
             continue
 
         inputs = processor(
-            audios=chunk, sampling_rate=sr, return_tensors="pt", padding=True
+            audio=chunk, sampling_rate=sr, return_tensors="pt", padding=True
         )
         with torch.no_grad():
-            audio_embed = model.get_audio_features(**inputs)
-        audio_embed = audio_embed / audio_embed.norm(dim=-1, keepdim=True)
+            audio_embed = _unit(_embedding(model.get_audio_features(**inputs)))
 
         scores = (audio_embed @ text_embeds.T).squeeze(0)
         order = torch.argsort(scores, descending=True)[:6]

@@ -65,11 +65,8 @@ MAX_DURATION_S = 600.0
 # skipped entirely, so instrumental tracks never pay for transcription.
 VOCAL_SILENCE_RMS = 1e-3
 
-CLAP_TAGS = [
-    "dusty", "warm", "bright", "dark", "melancholy", "euphoric", "aggressive",
-    "gentle", "lo-fi", "clean", "distorted", "spacious", "tight", "vintage",
-    "modern", "sparse", "dense", "hypnotic", "urgent", "relaxed",
-]
+# The tag vocabulary lives in worker/pipeline/tag.py, next to the model
+# that scores against it, so a runner without modal installed can use it.
 
 
 def _supabase():

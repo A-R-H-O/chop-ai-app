@@ -5,15 +5,18 @@ analyse, cut on the onset grid, upload, zip. That is the whole loop from
 "chop it" to a downloadable zip, which means the product is demonstrable
 and the job lifecycle is exercised for real before any account exists.
 
-Two things it deliberately does not do, because they are exactly the two
-that need credentials:
+Two stages are opt-in, because each costs something the bare runner does
+not need:
 
-  - Stem separation. demucs needs a GPU and multi-gigabyte weights, so
-    every chop is taken from the mix. Samples are labelled stem "mix"
-    rather than pretending they were separated.
-  - Claude selection. Chops come from naive_chops on the onset grid, so
-    they are musically placed but not chosen for what the producer asked
-    for. The reason on each sample says so rather than inventing one.
+  - CHOP_HEAVY=1 runs demucs, whisper and CLAP on this machine. Same code
+    the GPU worker runs, on cuda, mps or cpu, whichever is present. It is
+    a 2GB install and turns a chop from seconds into minutes. Without it
+    every chop comes from the mix and is labelled stem "mix" rather than
+    pretending it was separated.
+  - ANTHROPIC_API_KEY makes the selector ask Claude which regions to cut.
+    Without it chops come from naive_chops on the onset grid: musically
+    placed, but ignoring what the producer actually asked for. The reason
+    on each sample says which of the two happened.
 
 Everything else — snapping, bar quantization, fades, normalisation, peak
 computation, storage, metrics, refunds on failure — is the same code the
@@ -23,6 +26,8 @@ Usage:
     worker/.venv/bin/python worker/local_runner.py          # poll forever
     worker/.venv/bin/python worker/local_runner.py --once   # drain and exit
     worker/.venv/bin/python worker/local_runner.py --job <uuid>
+
+    CHOP_HEAVY=1 worker/.venv/bin/python worker/local_runner.py --once
 """
 
 from __future__ import annotations
@@ -45,8 +50,23 @@ ANALYSIS_WINDOW_S = 120.0
 MAX_DURATION_S = 600.0
 MAX_CHOPS = 3
 
+# Below this the vocals stem is separation noise rather than singing.
+VOCAL_RMS_FLOOR = 0.005
+
+# Run demucs, whisper and CLAP on this machine. Off by default because
+# the stack is a 2GB install and a chop goes from seconds to minutes;
+# on, it is the same pipeline the GPU worker runs.
+HEAVY = os.environ.get("CHOP_HEAVY") == "1"
+
+# Use Claude to choose the chops rather than taking them off the onset
+# grid. Needs a key; without one the fallback is still musically placed,
+# it just ignores what the producer asked for.
+USE_CLAUDE = bool(os.environ.get("ANTHROPIC_API_KEY"))
+
+# Why a chop was selected is already on the chop: naive_chops says it
+# came off the grid, and Claude writes its own reason. The only caveat
+# the runner adds is one the chop cannot know about.
 STEM_NOTE = "cut from the mix: stem separation needs a GPU"
-SELECTION_NOTE = "cut on the onset grid without model selection"
 
 
 def connect():
@@ -124,11 +144,19 @@ def process(db, job: dict) -> None:
             raise ChopError("that track is longer than ten minutes")
         stage_ms["pulled_audio"] = int((time.monotonic() - t) * 1000)
 
-        # ---- Stage 2: no separation locally ----------------------------
+        # ---- Stage 2: separated stems ----------------------------------
         t = mark("separated_stems")
         window = analyze.pick_analysis_window(source, ANALYSIS_WINDOW_S)
         windowed = os.path.join(work, "window.wav")
         slicer.cut(source, windowed, window[0], window[1])
+
+        stem_paths: dict[str, str] = {}
+        if HEAVY:
+            from worker.pipeline import stems as stem_stage
+
+            print(f"    separating on {stem_stage.device()}")
+            stem_paths = stem_stage.separate(windowed, os.path.join(work, "stems"))
+            print(f"    {', '.join(sorted(stem_paths))}")
         stage_ms["separated_stems"] = int((time.monotonic() - t) * 1000)
 
         # ---- Stage 3: reading instruments ------------------------------
@@ -138,16 +166,45 @@ def process(db, job: dict) -> None:
         key = analyze.detect_key(windowed)
         hits = analyze.classify_drum_hits(windowed, onsets)
 
+        # Onsets per stem, which is what lets a chop be placed on the
+        # drum transient rather than wherever the mix happened to peak.
+        onsets_by_stem = {"mix": onsets}
+        for name, path in stem_paths.items():
+            if name != "mix":
+                onsets_by_stem[name] = analyze.detect_onsets(path)
+
+        lyrics: list[dict] = []
+        clap_tags: list[dict] = []
+        if HEAVY:
+            from worker.pipeline import stems as stem_stage
+            from worker.pipeline import tag as tag_stage
+
+            vocals = stem_paths.get("vocals")
+            # An instrumental's vocals stem is separation noise. Sending
+            # it to whisper burns time to produce hallucinated lyrics.
+            if vocals and stem_stage.rms(vocals) >= VOCAL_RMS_FLOOR:
+                lyrics = tag_stage.transcribe(vocals)
+                print(f"    {len(lyrics)} lyric lines")
+            else:
+                print("    no vocal to transcribe")
+
+            clap_tags = tag_stage.tag_windows(windowed, tag_stage.CLAP_TAGS)
+            if clap_tags:
+                top = ", ".join(n for n, _ in clap_tags[0]["tags"][:4])
+                print(f"    {len(clap_tags)} mood windows, opens {top}")
+
         features: dict[str, Any] = {
             "bpm": tempo.bpm,
             "downbeat": tempo.downbeat,
             "key": key,
             "duration_s": window[1] - window[0],
             "analysis_window": list(window),
-            "onsets_by_stem": {"mix": onsets},
+            "onsets_by_stem": onsets_by_stem,
             "drum_hits": hits,
-            "lyrics": [],
+            "lyrics": lyrics,
+            "clap_tags": clap_tags,
             "local_run": True,
+            "heavy": HEAVY,
         }
         print(
             f"    {round(tempo.bpm)} bpm, {key}, {len(onsets)} onsets, "
@@ -157,9 +214,24 @@ def process(db, job: dict) -> None:
 
         # ---- Stage 4: finding chops ------------------------------------
         t = mark("finding_chops")
-        chops = select.naive_chops(
-            onsets, tempo.bpm, features["duration_s"], limit=MAX_CHOPS
-        )
+        usage: dict[str, int] = {}
+        chops = []
+
+        if USE_CLAUDE:
+            try:
+                chops, usage = select.propose_chops_with_claude(
+                    features, job["prompt"], os.environ["ANTHROPIC_API_KEY"]
+                )
+                print(f"    claude chose {len(chops)} chops")
+            except Exception as error:  # noqa: BLE001 - fall back, never fail
+                # A model outage should cost the producer a worse chop,
+                # not the whole job.
+                print(f"    claude failed ({error}), falling back to the grid")
+
+        if not chops:
+            chops = select.naive_chops(
+                onsets, tempo.bpm, features["duration_s"], limit=MAX_CHOPS
+            )
         if not chops:
             raise ChopError(
                 "could not find anything worth chopping in that audio"
@@ -176,14 +248,22 @@ def process(db, job: dict) -> None:
         bar_s = (60.0 / tempo.bpm) * 4.0 if tempo.bpm else None
 
         for chop in chops:
-            start = slicer.snap_to_onset(chop.start_ms / 1000.0, onsets, max_ms=50)
+            # Cut from the stem the chop names, falling back to the mix
+            # when that stem was never separated.
+            src = stem_paths.get(chop.stem, windowed)
+            stem = chop.stem if chop.stem in stem_paths else "mix"
+
+            # Snap against that stem's own transients: a drum chop should
+            # land on the drum hit, not on wherever the mix peaked.
+            grid = onsets_by_stem.get(stem, onsets)
+            start = slicer.snap_to_onset(chop.start_ms / 1000.0, grid, max_ms=50)
             start, end = slicer.quantize_to_bars(
                 start, chop.end_ms / 1000.0, tempo.bpm
             )
 
             filename = slicer.sample_filename(chop.rank, chop.name, tempo.bpm, key)
             dst = os.path.join(out_dir, filename)
-            slicer.cut(windowed, dst, start, end)
+            slicer.cut(src, dst, start, end)
             written.append(dst)
 
             storage_path = f"{job['user_id']}/{job_id}/{filename}"
@@ -198,12 +278,16 @@ def process(db, job: dict) -> None:
                 {
                     "job_id": job_id,
                     "name": chop.name,
-                    "stem": "mix",
+                    "stem": stem,
                     "start_ms": int(start * 1000),
                     "end_ms": int(end * 1000),
                     "bars": round((end - start) / bar_s, 2) if bar_s else None,
-                    "tags": [],
-                    "reason": f"{SELECTION_NOTE}; {STEM_NOTE}",
+                    "tags": chop.tags,
+                    # A caveat is only worth printing when it is true of
+                    # this run.
+                    "reason": "; ".join(
+                        [chop.reason] + ([] if HEAVY else [STEM_NOTE])
+                    ),
                     "storage_path": storage_path,
                     "peaks": slicer.compute_peaks(dst, buckets=24),
                     "rank": chop.rank,
@@ -226,20 +310,34 @@ def process(db, job: dict) -> None:
 
         # ---- Done ------------------------------------------------------
         elapsed = time.monotonic() - started
-        # No GPU was used, so the GPU half is genuinely zero rather than
-        # estimated. The model half is zero too because no model ran.
-        breakdown = cost.estimate_cost_micros(gpu_seconds=0.0)
+
+        # This machine is not the L4, so its wall clock is not the GPU
+        # bill. Charging the model stages' real seconds at the L4 rate
+        # gives a number in the right units and the right ballpark, which
+        # is what the economics view reads; zero would flatter it.
+        gpu_seconds = (
+            sum(stage_ms.get(s, 0) for s in ("separated_stems", "reading_instruments"))
+            / 1000.0
+            if HEAVY
+            else 0.0
+        )
+        breakdown = cost.estimate_cost_micros(
+            gpu_seconds=gpu_seconds,
+            input_tokens=usage.get("input_tokens", 0),
+            output_tokens=usage.get("output_tokens", 0),
+            cache_read_tokens=usage.get("cache_read_tokens", 0),
+        )
 
         db.table("job_metrics").upsert(
             {
                 "job_id": job_id,
                 "cache_hit": False,
-                "gpu_seconds": 0.0,
+                "gpu_seconds": round(gpu_seconds, 2),
                 "stage_ms": stage_ms,
-                "claude_input_tokens": 0,
-                "claude_output_tokens": 0,
-                "claude_cache_read_tokens": 0,
-                "whisper_ran": False,
+                "claude_input_tokens": usage.get("input_tokens", 0),
+                "claude_output_tokens": usage.get("output_tokens", 0),
+                "claude_cache_read_tokens": usage.get("cache_read_tokens", 0),
+                "whisper_ran": bool(lyrics) or HEAVY,
                 "analysis_window_ms": int((window[1] - window[0]) * 1000),
                 "cost_micros": breakdown.total_micros,
             }
@@ -287,8 +385,10 @@ def main() -> None:
     args = parser.parse_args()
 
     db = connect()
-    print("local chop worker: mix only, no model selection")
-    print("  stem separation needs a GPU; chop choice needs an Anthropic key\n")
+    print("local chop worker")
+    print(f"  stems, lyrics, mood: {'on' if HEAVY else 'off (set CHOP_HEAVY=1)'}")
+    selection = "claude" if USE_CLAUDE else "onset grid (set ANTHROPIC_API_KEY)"
+    print(f"  chop selection: {selection}\n")
 
     if args.job:
         job = db.table("jobs").select("*").eq("id", args.job).single().execute().data

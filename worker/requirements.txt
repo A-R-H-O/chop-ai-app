@@ -7,7 +7,11 @@ pytest
 torch
 demucs
 faster-whisper
-transformers
+# transformers 5 renamed the ClapProcessor audio kwarg and changed
+# get_*_features to return a model output rather than a tensor. tag.py
+# handles both, but pinning the major stops the image resolving to an
+# API we have never run against.
+transformers>=5,<6
 anthropic
 supabase
 yt-dlp

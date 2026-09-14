@@ -26,14 +26,39 @@
 | 8 | Web Audio engine and keyboard bindings | **done**, 17 tests |
 | 9 | Samples screen 05 and export zip | **done** |
 | 10 | Recommended screen 04 and retry | **done** |
-| 11 | `worker/chop_app.py` — Modal wrapper | **written, never run** — Modal account |
-| 12 | Stage 3 GPU analysis: whisper, CLAP | **written, never run** — Modal account |
-| 13 | Stage 4 Claude chop selection | **written**, 19 tests on the fallback and prompt; the API call itself needs a key |
+| 11 | `worker/chop_app.py` — Modal wrapper | **written**; the stages it calls are all verified now, the Modal wiring itself needs an account |
+| 12 | Stage 2 and 3 models: demucs, whisper, CLAP | **run and verified** on Apple MPS via `CHOP_HEAVY=1`, 14 tests |
+| 13 | Stage 4 Claude chop selection | **written and wired**, 19 tests on the fallback and prompt; the API call itself needs a key |
 | 14 | Stage 0 cache by video id and content hash | **written**, 12 tests on parsing and hashing; the cache path needs Modal |
 | 15 | YouTube ingestion | **written, never run** — residential proxy |
 | 16 | `chop_economics` view and alert thresholds | **done**, reproduces worker/cost.py independently |
 
 Tasks are ordered so every local task lands before its blocked dependents, and so the UI becomes demonstrable as early as Task 9.
+
+## What the models actually do, measured
+
+Task 12 was blocked on a Modal account until the stack was installed
+locally and run on this machine's GPU. It is no longer a guess:
+
+- **demucs htdemucs** separates correctly. On `drums_90.wav`, a synthetic
+  drum pattern, it puts essentially all the energy in the drums stem
+  (rms 0.0569 against a mix of 0.0571) and leaves bass, vocals and other
+  at separation-noise level.
+- **CLAP** reads that same fixture as `clean, bright, spacious, modern`
+  and not as `dusty`, `vintage` or `lo-fi`, which is the correct reading
+  of a synthesised pattern with no analog character. The vocabulary is
+  opposing pairs so a score means something relative to its opposite.
+- **faster-whisper** runs and returns nothing on an instrumental, which
+  is what it should do. In the pipeline it is gated behind the vocals
+  stem's RMS so an instrumental never reaches it at all.
+
+Two real bugs surfaced only by running it, both in `tag.py` and both
+caused by transformers 5: `get_*_features` now returns a model output
+rather than a tensor, and `ClapProcessor` renamed `audios` to `audio`.
+`worker/requirements.txt` pins the major as a result.
+
+Timings on Apple MPS for a 10s fixture: separation 6.0s, analysis 6.7s,
+12.0s end to end against 2.1s for the same job with the models off.
 
 ---
 
