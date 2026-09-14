@@ -46,3 +46,30 @@ export function isStale(createdAt: string, status: JobStatus): boolean {
   if (status === "done" || status === "failed") return false;
   return Date.now() - new Date(createdAt).getTime() > STALE_AFTER_MS;
 }
+
+const GENERIC_FAILURE =
+  "something went wrong on our side. your credits have been returned.";
+
+const TIMED_OUT =
+  "this chop took too long and was given up on. your credits have been returned.";
+
+/**
+ * What the failure screen says.
+ *
+ * The worker decides what is safe to show and writes that to jobs.error,
+ * but the column is free text written by another process, so a stack
+ * trace or a stringified API body can still land in it. Anything with the
+ * punctuation of machine output gets the generic line instead.
+ */
+export function failureMessage(error: string | null, stale: boolean): string {
+  if (stale) return TIMED_OUT;
+
+  const message = error?.trim();
+  if (!message) return GENERIC_FAILURE;
+
+  const looksMachineWritten =
+    /[{}<>[\]]|Traceback|Error:|\bstatusCode\b|https?:\/\//.test(message) ||
+    message.length > 160;
+
+  return looksMachineWritten ? GENERIC_FAILURE : message;
+}

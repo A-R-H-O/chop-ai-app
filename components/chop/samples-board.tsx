@@ -25,7 +25,9 @@ export function SamplesBoard({
   zipUrl: string | null;
   jobId: string;
 }) {
-  const [playing, setPlaying] = useState<Set<string>>(new Set());
+  // How far into each playing sample we are, 0 to 1. Absent means
+  // stopped, which is also what drives the play/pause glyph.
+  const [progress, setProgress] = useState<Record<string, number>>({});
   const [ready, setReady] = useState(false);
 
   const engine = useMemo(() => {
@@ -54,38 +56,65 @@ export function SamplesBoard({
     };
   }, [engine, samples]);
 
+  // The context is created suspended during preload and resume() is
+  // async, so the first pad hit would otherwise wait on it. Any earlier
+  // gesture on the page pays that cost instead.
+  useEffect(() => {
+    const warm = () => engine.warm();
+    window.addEventListener("pointerdown", warm, { once: true });
+    window.addEventListener("keydown", warm, { once: true });
+    return () => {
+      window.removeEventListener("pointerdown", warm);
+      window.removeEventListener("keydown", warm);
+    };
+  }, [engine]);
+
   // Keyed on the engine, not empty: if jobId changes the previous
   // engine is the one that must be disposed.
   useEffect(() => () => engine.dispose(), [engine]);
 
+  // One frame loop for every card, reading the position straight off the
+  // audio clock. Per-sample timers would drift against it.
+  useEffect(() => {
+    let frame = 0;
+    const tick = () => {
+      setProgress((current) => {
+        let changed = false;
+        const next: Record<string, number> = {};
+        for (const sample of samples) {
+          const at = engine.progress(sample.id);
+          if (at === null) {
+            if (current[sample.id] !== undefined) changed = true;
+            continue;
+          }
+          next[sample.id] = at;
+          if (current[sample.id] !== at) changed = true;
+        }
+        return changed ? next : current;
+      });
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [engine, samples]);
+
+  /** A pad hit. Always fires, never stops: tapping a pad twice is two
+   *  hits, not a hit and a mute. */
+  const trigger = useCallback(
+    (sample: SampleRow, source: TriggerSource) => {
+      engine.play(sample.id, source);
+    },
+    [engine],
+  );
+
+  /** The card's transport button, which says play or pause and means it. */
   const toggle = useCallback(
-    (sample: SampleRow, trigger: TriggerSource) => {
+    (sample: SampleRow) => {
       if (engine.isPlaying(sample.id)) {
         engine.stop(sample.id);
-        setPlaying((current) => {
-          const next = new Set(current);
-          next.delete(sample.id);
-          return next;
-        });
         return;
       }
-
-      if (!engine.play(sample.id, trigger)) return;
-
-      setPlaying((current) => new Set(current).add(sample.id));
-      // Clear the indicator when the voice finishes. Polling is simpler
-      // here than threading an onended callback through the engine, and a
-      // 120ms tick is imperceptible on a transport indicator.
-      const poll = setInterval(() => {
-        if (!engine.isPlaying(sample.id)) {
-          clearInterval(poll);
-          setPlaying((current) => {
-            const next = new Set(current);
-            next.delete(sample.id);
-            return next;
-          });
-        }
-      }, 120);
+      engine.play(sample.id, "click");
     },
     [engine],
   );
@@ -97,12 +126,12 @@ export function SamplesBoard({
       const sample = samples[index];
       if (!sample) return;
       event.preventDefault();
-      toggle(sample, "keyboard");
+      trigger(sample, "keyboard");
     }
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [samples, toggle]);
+  }, [samples, trigger]);
 
   return (
     <div className="flex w-full flex-1 flex-col gap-6">
@@ -138,9 +167,10 @@ export function SamplesBoard({
             bpm={bpm}
             musicKey={musicKey}
             keyBinding={keyForIndex(i)}
-            playing={playing.has(sample.id)}
-            highlighted={playing.has(sample.id)}
-            onToggle={() => toggle(sample, "click")}
+            playing={progress[sample.id] !== undefined}
+            highlighted={progress[sample.id] !== undefined}
+            progress={progress[sample.id] ?? null}
+            onToggle={() => toggle(sample)}
           />
         ))}
       </div>

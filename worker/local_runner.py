@@ -38,6 +38,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from worker import cost  # noqa: E402
 from worker.pipeline import analyze, ingest, select, slice as slicer  # noqa: E402
+from worker.pipeline.errors import ChopError, user_message  # noqa: E402
 
 POLL_SECONDS = 2.0
 ANALYSIS_WINDOW_S = 120.0
@@ -105,7 +106,7 @@ def process(db, job: dict) -> None:
         # ---- Stage 1: pulled audio -------------------------------------
         t = mark("pulled_audio")
         if job["source_type"] == "youtube":
-            raise ValueError(
+            raise ChopError(
                 "youtube links need the hosted worker. upload a file instead."
             )
 
@@ -120,7 +121,7 @@ def process(db, job: dict) -> None:
 
         duration = librosa.get_duration(path=source)
         if duration > MAX_DURATION_S:
-            raise ValueError("that track is longer than ten minutes")
+            raise ChopError("that track is longer than ten minutes")
         stage_ms["pulled_audio"] = int((time.monotonic() - t) * 1000)
 
         # ---- Stage 2: no separation locally ----------------------------
@@ -160,7 +161,7 @@ def process(db, job: dict) -> None:
             onsets, tempo.bpm, features["duration_s"], limit=MAX_CHOPS
         )
         if not chops:
-            raise ValueError(
+            raise ChopError(
                 "could not find anything worth chopping in that audio"
             )
         stage_ms["finding_chops"] = int((time.monotonic() - t) * 1000)
@@ -259,9 +260,11 @@ def process(db, job: dict) -> None:
         print(f"  done in {elapsed:.1f}s, {len(rows)} samples\n")
 
     except Exception as error:  # noqa: BLE001 - a job must always resolve
-        print(f"  failed: {error}\n")
+        # The terminal gets the real exception, the job gets the line we
+        # are willing to show the producer.
+        print(f"  failed: {error!r}\n")
         db.table("jobs").update(
-            {"status": "failed", "error": str(error)}
+            {"status": "failed", "error": user_message(error)}
         ).eq("id", job_id).execute()
         db.table("job_metrics").upsert(
             {

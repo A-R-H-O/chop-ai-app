@@ -9,6 +9,7 @@ import {
   STAGES,
   stageStates,
   isStale,
+  failureMessage,
   type JobStatus,
   type StageId,
 } from "@/lib/jobs/stages";
@@ -50,31 +51,64 @@ function RecordStack() {
     <div
       aria-hidden="true"
       className="relative hidden size-[300px] shrink-0 md:block"
-      style={{ perspective: "760px", perspectiveOrigin: "50% 40%" }}
+      style={{
+        perspective: "760px",
+        perspectiveOrigin: "50% 40%",
+        transformStyle: "preserve-3d",
+      }}
     >
-      {[0, 0.6, 1.2, 1.8].map((delay, i) => (
-        <div
-          key={delay}
-          className="absolute top-1/2 left-1/2 size-[220px] rounded-full motion-safe:animate-chop-stack"
-          style={{
-            transform: "translate(-50%, -50%) rotateX(66deg)",
-            transformStyle: "preserve-3d",
-            animationDelay: `${delay}s`,
-            background: i % 2 === 0 ? "var(--color-chop-accent)" : "#1A0E33",
-            boxShadow:
-              i % 2 === 0
-                ? "inset 0 0 0 1px rgb(24 22 1 / 0.35)"
-                : "inset 0 0 0 1px rgb(254 252 236 / 0.3)",
-          }}
-        >
-          <span
-            className="absolute top-1/2 left-1/2 size-[66px] -translate-x-1/2 -translate-y-1/2 rounded-full"
+      {[0, 0.6, 1.2, 1.8].map((delay, i) => {
+        // Alternating records. The yellow ones are inked dark and the
+        // dark ones inked light, so the grooves read on both.
+        const yellow = i % 2 === 0;
+        const ink = yellow ? "24 22 1" : "254 252 236";
+
+        return (
+          <div
+            key={delay}
+            className="absolute top-1/2 left-1/2 size-[220px] rounded-full motion-safe:animate-chop-stack"
             style={{
-              background: i % 2 === 0 ? "var(--color-chop-ground)" : "var(--color-chop-accent)",
+              transform: "translate(-50%, -50%) rotateX(66deg)",
+              transformStyle: "preserve-3d",
+              animationDelay: `${delay}s`,
+              background: yellow ? "var(--color-chop-accent)" : "#1A0E33",
+              boxShadow: `inset 0 0 0 1px rgb(${ink} / ${yellow ? 0.35 : 0.3})`,
             }}
-          />
-        </div>
-      ))}
+          >
+            {/* The two grooves. Without them a record is just a disc, and
+                the stack reads as stacked blobs. */}
+            <span
+              className="absolute inset-5 rounded-full"
+              style={{
+                boxShadow: `inset 0 0 0 1px rgb(${ink} / ${yellow ? 0.25 : 0.18})`,
+              }}
+            />
+            <span
+              className="absolute inset-[42px] rounded-full"
+              style={{
+                boxShadow: `inset 0 0 0 1px rgb(${ink} / ${yellow ? 0.2 : 0.14})`,
+              }}
+            />
+            <span
+              className="absolute top-1/2 left-1/2 size-[66px] -translate-x-1/2 -translate-y-1/2 rounded-full"
+              style={{
+                background: yellow
+                  ? "var(--color-chop-ground)"
+                  : "var(--color-chop-accent)",
+              }}
+            />
+            {/* The spindle pin the stack is threaded on. */}
+            <span
+              className="absolute top-1/2 left-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full"
+              style={{
+                background: yellow
+                  ? "var(--color-chop-accent)"
+                  : "var(--color-chop-ground)",
+              }}
+            />
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -131,9 +165,7 @@ export function JobLoader({ initial }: { initial: JobSnapshot }) {
           that did not work
         </h1>
         <p className="max-w-[460px] font-sans text-lg leading-7 text-chop-muted">
-          {stale
-            ? "this chop took too long and was given up on. your credits have been returned."
-            : (job.error ?? "something went wrong. your credits have been returned.")}
+          {failureMessage(job.error, stale)}
         </p>
         <Link
           href="/"

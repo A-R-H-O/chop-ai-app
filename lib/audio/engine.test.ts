@@ -16,6 +16,8 @@ function stubAudio() {
 
   const context = {
     state: "running",
+    // Advanced by hand in the tests to stand in for the audio clock.
+    currentTime: 0,
     destination: {},
     createBufferSource: vi.fn(() => new FakeSource()),
     decodeAudioData: vi.fn(async () => ({ duration: 1 })),
@@ -194,5 +196,78 @@ describe("keyboard bindings", () => {
     expect(shouldTrigger({ key: "q", repeat: false, target: null } as never)).toBe(
       false,
     );
+  });
+});
+
+describe("SampleEngine playhead", () => {
+  it("reports nothing for a sample that is not playing", async () => {
+    stubAudio();
+    const engine = new SampleEngine();
+    await engine.load("s1", "/a.wav");
+
+    expect(engine.progress("s1")).toBeNull();
+  });
+
+  it("tracks position against the audio clock, not a timer", async () => {
+    const { context } = stubAudio();
+    const engine = new SampleEngine();
+    await engine.load("s1", "/a.wav");
+
+    engine.play("s1");
+    expect(engine.progress("s1")).toBe(0);
+
+    // The stub buffer is one second long.
+    context.currentTime = 0.25;
+    expect(engine.progress("s1")).toBeCloseTo(0.25);
+
+    context.currentTime = 0.9;
+    expect(engine.progress("s1")).toBeCloseTo(0.9);
+  });
+
+  it("clamps at the end rather than running past one", async () => {
+    const { context } = stubAudio();
+    const engine = new SampleEngine();
+    await engine.load("s1", "/a.wav");
+
+    engine.play("s1");
+    context.currentTime = 5;
+
+    expect(engine.progress("s1")).toBe(1);
+  });
+
+  it("restarts the playhead when a pad is retriggered", async () => {
+    const { context } = stubAudio();
+    const engine = new SampleEngine();
+    await engine.load("s1", "/a.wav");
+
+    engine.play("s1");
+    context.currentTime = 0.8;
+    expect(engine.progress("s1")).toBeCloseTo(0.8);
+
+    // Hitting the pad again is a new hit: the position follows the newest
+    // voice, so the playhead jumps back to the top.
+    engine.play("s1");
+    expect(engine.progress("s1")).toBe(0);
+  });
+
+  it("forgets the position once the sample is stopped", async () => {
+    stubAudio();
+    const engine = new SampleEngine();
+    await engine.load("s1", "/a.wav");
+
+    engine.play("s1");
+    engine.stop("s1");
+
+    expect(engine.progress("s1")).toBeNull();
+  });
+
+  it("warms the context before the first hit so resume is already paid", () => {
+    const { context } = stubAudio();
+    context.state = "suspended";
+    const engine = new SampleEngine();
+
+    engine.warm();
+
+    expect(context.resume).toHaveBeenCalled();
   });
 });

@@ -30,7 +30,12 @@ export function RecommendedBoard({
   sourceLabel: string;
   balance: number;
 }) {
-  const [playing, setPlaying] = useState<string | null>(null);
+  // The sample being auditioned and how far into it we are. Derived from
+  // the audio clock, so a sample that runs out clears itself rather than
+  // leaving the card lit.
+  const [playhead, setPlayhead] = useState<{ id: string; at: number } | null>(
+    null,
+  );
   const [context, setContext] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -60,14 +65,37 @@ export function RecommendedBoard({
   // engine is the one that must be disposed.
   useEffect(() => () => engine.dispose(), [engine]);
 
+  useEffect(() => {
+    const warm = () => engine.warm();
+    window.addEventListener("pointerdown", warm, { once: true });
+    return () => window.removeEventListener("pointerdown", warm);
+  }, [engine]);
+
+  useEffect(() => {
+    let frame = 0;
+    const tick = () => {
+      setPlayhead((current) => {
+        if (!current) return current;
+        const at = engine.progress(current.id);
+        if (at === null) return null;
+        return at === current.at ? current : { id: current.id, at };
+      });
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [engine]);
+
+  // One at a time here: this screen is for auditioning the chops, so a
+  // second one starting cuts the first rather than layering over it.
   function toggle(sample: SampleRow) {
     if (engine.isPlaying(sample.id)) {
       engine.stop(sample.id);
-      setPlaying(null);
+      setPlayhead(null);
       return;
     }
-    if (playing) engine.stop(playing);
-    if (engine.play(sample.id, "click")) setPlaying(sample.id);
+    if (playhead) engine.stop(playhead.id);
+    if (engine.play(sample.id, "click")) setPlayhead({ id: sample.id, at: 0 });
   }
 
   async function retry() {
@@ -118,8 +146,9 @@ export function RecommendedBoard({
             sample={sample}
             bpm={bpm}
             musicKey={musicKey}
-            playing={playing === sample.id}
-            highlighted={playing === sample.id}
+            playing={playhead?.id === sample.id}
+            progress={playhead?.id === sample.id ? playhead.at : null}
+            highlighted={playhead?.id === sample.id}
             onToggle={() => toggle(sample)}
             onAddContext={() =>
               setEditing(editing === sample.id ? null : sample.id)

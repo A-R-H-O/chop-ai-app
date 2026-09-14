@@ -100,7 +100,10 @@
     }
   }
 
-  /* The loader's records rising through the stack, from the handoff. */
+  /* The loader's records rising through the stack, from the handoff.
+   * Copied from its chop-stack keyframes exactly: the translateZ is
+   * applied after the tilt on purpose, so the discs travel along the
+   * record's own normal and climb the spindle. */
   @keyframes chop-stack {
     0% {
       transform: translate(-50%, -50%) rotateX(66deg) translateZ(-170px);

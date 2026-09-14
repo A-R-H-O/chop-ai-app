@@ -15,20 +15,53 @@ export interface SampleRow {
   url: string;
 }
 
-function Waveform({ peaks, dark }: { peaks: number[]; dark: boolean }) {
+/**
+ * The waveform, doubling as the transport.
+ *
+ * Bars behind the playhead are full strength and the ones ahead are
+ * dimmed, so the position is readable at a glance without staring at a
+ * one pixel line. The line is there too, because on a two second chop the
+ * bar-by-bar fill is coarse.
+ */
+function Waveform({
+  peaks,
+  dark,
+  progress,
+}: {
+  peaks: number[];
+  dark: boolean;
+  progress: number | null;
+}) {
+  const playing = progress !== null;
+
   return (
-    <div aria-hidden="true" className="flex h-11 items-center gap-[3px]">
-      {peaks.map((peak, i) => (
+    <div aria-hidden="true" className="relative flex h-11 items-center gap-[3px]">
+      {peaks.map((peak, i) => {
+        const played = playing && i / peaks.length <= progress;
+        return (
+          <span
+            key={i}
+            className={`min-w-[2px] flex-auto rounded-[2px] ${
+              dark ? "bg-chop-on-accent" : "bg-chop-accent"
+            }`}
+            // A floor of 6% so a silent bucket is still a visible tick
+            // rather than a gap in the waveform.
+            style={{
+              height: `${Math.max(6, peak * 100)}%`,
+              opacity: playing ? (played ? 1 : 0.3) : dark ? 0.9 : 0.85,
+            }}
+          />
+        );
+      })}
+
+      {playing && (
         <span
-          key={i}
-          className={`min-w-[2px] flex-auto rounded-[2px] ${
-            dark ? "bg-chop-on-accent opacity-90" : "bg-chop-accent opacity-85"
+          className={`pointer-events-none absolute inset-y-0 w-[2px] rounded-full ${
+            dark ? "bg-chop-on-accent" : "bg-chop-ink"
           }`}
-          // A floor of 6% so a silent bucket is still a visible tick
-          // rather than a gap in the waveform.
-          style={{ height: `${Math.max(6, peak * 100)}%` }}
+          style={{ left: `${progress * 100}%` }}
         />
-      ))}
+      )}
     </div>
   );
 }
@@ -63,6 +96,7 @@ export function SampleCard({
   keyBinding,
   playing,
   highlighted,
+  progress = null,
   onToggle,
   onAddContext,
 }: {
@@ -72,6 +106,8 @@ export function SampleCard({
   keyBinding?: string | null;
   playing: boolean;
   highlighted: boolean;
+  /** Position within the sample, 0 to 1, or null when stopped. */
+  progress?: number | null;
   onToggle: () => void;
   onAddContext?: () => void;
 }) {
@@ -130,7 +166,7 @@ export function SampleCard({
         ) : null}
       </div>
 
-      <Waveform peaks={sample.peaks} dark={highlighted} />
+      <Waveform peaks={sample.peaks} dark={highlighted} progress={progress} />
 
       <div className="flex flex-col gap-1">
         <span className="font-display text-base leading-6 font-semibold">

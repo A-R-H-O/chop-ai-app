@@ -56,3 +56,12 @@ yarn-error.log*
 worker/.venv/
 worker/**/__pycache__/
 worker/tests/fixtures/*.wav
+
+# Local screenshot captures, not part of the app.
+.shots/
+
+# Local dev environment snapshots.
+.env.hosted.backup
+
+# Temporary local sign-in helper for screenshots. Never ship this.
+app/dev-signin/

@@ -119,6 +119,7 @@ def run_job(job_id: str) -> None:
     from worker import cost
     from worker.pipeline import analyze, select, slice as slicer
     from worker.pipeline import ingest, stems as stem_stage, tag as tag_stage
+    from worker.pipeline.errors import ChopError, user_message
 
     db = _supabase()
     started = time.monotonic()
@@ -168,7 +169,7 @@ def run_job(job_id: str) -> None:
             source_wav = ingest.fetch_source(job, work)
             duration = analyze.librosa.get_duration(path=source_wav)
             if duration > MAX_DURATION_S:
-                raise ValueError("that track is longer than ten minutes")
+                raise ChopError("that track is longer than ten minutes")
 
             if job["source_type"] == "upload":
                 cache_key = ingest.audio_hash(source_wav)
@@ -280,7 +281,7 @@ def run_job(job_id: str) -> None:
             )
 
         if not chops:
-            raise ValueError(
+            raise ChopError(
                 "could not find anything worth chopping. try a different description"
             )
         stage_ms["finding_chops"] = int((time.monotonic() - t) * 1000)
@@ -381,7 +382,10 @@ def run_job(job_id: str) -> None:
         metrics["stage_ms"] = stage_ms
         metrics["gpu_seconds"] = round(time.monotonic() - started, 2)
         metrics["cost_micros"] = 0
-        _fail(db, job_id, str(error), metrics)
+        # The real exception goes to the Modal logs; the job gets the line
+        # we are willing to show the producer.
+        print(f"job {job_id} failed: {error!r}")
+        _fail(db, job_id, user_message(error), metrics)
 
 
 @app.function(image=image, secrets=secrets)

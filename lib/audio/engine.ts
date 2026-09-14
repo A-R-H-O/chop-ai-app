@@ -23,6 +23,8 @@ export class SampleEngine {
   private buffers = new Map<string, AudioBuffer>();
   private loading = new Map<string, Promise<AudioBuffer>>();
   private active = new Map<string, AudioBufferSourceNode[]>();
+  /** When each sample's newest voice started, on the context clock. */
+  private startedAt = new Map<string, number>();
   private events: EngineEvents;
 
   constructor(events: EngineEvents = {}) {
@@ -32,6 +34,11 @@ export class SampleEngine {
   /**
    * Browsers start an AudioContext suspended until a user gesture, so
    * this must be called from inside a real click or keydown handler.
+   *
+   * latencyHint "interactive" asks for the smallest buffer the device
+   * will give us. The default is "balanced", which trades tens of
+   * milliseconds of latency for power, and tens of milliseconds is the
+   * difference between a pad and a lag.
    */
   private ensureContext(): AudioContext {
     if (!this.context) {
@@ -39,12 +46,38 @@ export class SampleEngine {
         window.AudioContext ??
         (window as unknown as { webkitAudioContext: typeof AudioContext })
           .webkitAudioContext;
-      this.context = new Ctor();
+      this.context = new Ctor({ latencyHint: "interactive" });
     }
     if (this.context.state === "suspended") {
       void this.context.resume();
     }
     return this.context;
+  }
+
+  /**
+   * Bring the context up before the first pad hit.
+   *
+   * The context is created suspended during preload, and resume() is
+   * async, so without this the very first key press pays for the resume
+   * and lands noticeably late. Call it from any earlier gesture on the
+   * page and every hit including the first is immediate.
+   */
+  warm(): void {
+    this.ensureContext();
+  }
+
+  /** How far into the sample its newest voice is, 0 to 1, or null. */
+  progress(sampleId: string): number | null {
+    const voices = this.active.get(sampleId);
+    const started = this.startedAt.get(sampleId);
+    const buffer = this.buffers.get(sampleId);
+    if (!voices?.length || started === undefined || !buffer || !this.context) {
+      return null;
+    }
+
+    const elapsed = this.context.currentTime - started;
+    if (elapsed < 0) return 0;
+    return Math.min(1, elapsed / buffer.duration);
   }
 
   /** Decode once; concurrent callers share the same in-flight promise. */
@@ -103,9 +136,11 @@ export class SampleEngine {
       if (!current) return;
       const index = current.indexOf(source);
       if (index !== -1) current.splice(index, 1);
+      if (current.length === 0) this.startedAt.delete(sampleId);
     };
 
     source.start();
+    this.startedAt.set(sampleId, context.currentTime);
     this.events.onPlay?.(sampleId, trigger);
     return true;
   }
@@ -120,6 +155,7 @@ export class SampleEngine {
       }
     }
     this.active.set(sampleId, []);
+    this.startedAt.delete(sampleId);
   }
 
   stopAll(): void {
@@ -134,6 +170,7 @@ export class SampleEngine {
     this.stopAll();
     this.buffers.clear();
     this.loading.clear();
+    this.startedAt.clear();
     void this.context?.close();
     this.context = null;
   }
