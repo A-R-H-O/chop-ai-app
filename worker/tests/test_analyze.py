@@ -61,7 +61,7 @@ class TestDetectOnsets:
 
     def test_onsets_are_spaced_one_beat_apart(self):
         onsets = analyze.detect_onsets(fixture("click_120.wav"))
-        gaps = [b - a for a, b in zip(onsets, onsets[1:])]
+        gaps = [b - a for a, b in zip(onsets, onsets[1:], strict=False)]
         # One beat at 120bpm is 0.5s. This is the property that actually
         # matters downstream: the grid, not the absolute count.
         assert all(g == pytest.approx(0.5, abs=0.06) for g in gaps), gaps

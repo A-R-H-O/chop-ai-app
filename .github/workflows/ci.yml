@@ -84,5 +84,8 @@ jobs:
         # ground truth lives in code and the repo stays small.
         run: python worker/tests/make_fixtures.py
 
+      - name: lint
+        run: python -m ruff check worker/
+
       - name: tests
         run: python -m pytest worker/tests -q

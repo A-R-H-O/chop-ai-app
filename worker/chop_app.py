@@ -5,9 +5,7 @@ worker/pipeline/ as pure functions over file paths; this file supplies
 the things only Modal can — a card, a container image, a volume, secrets,
 and an endpoint — and writes progress to the database.
 
-NOT YET DEPLOYED. No Modal account exists at the time of writing, so
-nothing here has run. The stage functions it calls are tested; this
-wiring is not. Deploy with:
+Deploy with:
 
     modal deploy worker/chop_app.py
 """
@@ -38,6 +36,19 @@ image = (
         "ClapModel.from_pretrained('laion/clap-htsat-unfused'); "
         "ClapProcessor.from_pretrained('laion/clap-htsat-unfused')\"",
     )
+    .add_local_python_source("worker")
+)
+
+# The web endpoint and the nightly sweep do no audio work: one checks a
+# secret and spawns, the other deletes directories. Running them on the
+# image above would mean a multi-gigabyte cold start on the exact request
+# the producer's "chop it" click is waiting on.
+#
+# fastapi is explicit because Modal stopped installing it implicitly for
+# @modal.fastapi_endpoint.
+slim_image = (
+    modal.Image.debian_slim(python_version="3.11")
+    .pip_install("fastapi[standard]", "supabase")
     .add_local_python_source("worker")
 )
 
@@ -75,6 +86,24 @@ def _supabase():
     return create_client(
         os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"]
     )
+
+
+def _cached_analysis(db, cache_key: str) -> dict | None:
+    """Look up a previous analysis of the same audio.
+
+    maybe_single() returns None rather than a response object when no row
+    matches, so reading .data off the result blows up on exactly the
+    common case: the first time anybody chops a given track. Every upload
+    goes through here, so getting this wrong failed every job.
+    """
+    response = (
+        db.table("audio_cache")
+        .select("*")
+        .eq("cache_key", cache_key)
+        .maybe_single()
+        .execute()
+    )
+    return response.data if response else None
 
 
 def _set_stage(db, job_id: str, stage: str) -> None:
@@ -147,14 +176,7 @@ def run_job(job_id: str) -> None:
         if job["source_type"] == "youtube":
             cache_key = ingest.youtube_video_id(job["source_url"])
             if cache_key:
-                cached = (
-                    db.table("audio_cache")
-                    .select("*")
-                    .eq("cache_key", cache_key)
-                    .maybe_single()
-                    .execute()
-                    .data
-                )
+                cached = _cached_analysis(db, cache_key)
 
         # ---- Stage 1: pulled audio -------------------------------------
         t = mark("pulled_audio")
@@ -170,14 +192,7 @@ def run_job(job_id: str) -> None:
 
             if job["source_type"] == "upload":
                 cache_key = ingest.audio_hash(source_wav)
-                cached = (
-                    db.table("audio_cache")
-                    .select("*")
-                    .eq("cache_key", cache_key)
-                    .maybe_single()
-                    .execute()
-                    .data
-                )
+                cached = _cached_analysis(db, cache_key)
                 if cached:
                     features = cached["features"]
                     metrics["cache_hit"] = True
@@ -225,7 +240,9 @@ def run_job(job_id: str) -> None:
             else:
                 features["lyrics"] = []
 
-            features["clap_tags"] = tag_stage.tag_windows(windowed, CLAP_TAGS)
+            features["clap_tags"] = tag_stage.tag_windows(
+                windowed, tag_stage.CLAP_TAGS
+            )
             stage_ms["reading_instruments"] = int((time.monotonic() - t) * 1000)
 
             if cache_key:
@@ -385,7 +402,7 @@ def run_job(job_id: str) -> None:
         _fail(db, job_id, user_message(error), metrics)
 
 
-@app.function(image=image, secrets=secrets)
+@app.function(image=slim_image, secrets=secrets)
 @modal.fastapi_endpoint(method="POST")
 def start(payload: dict) -> dict:
     """Spawns the GPU function and returns immediately.
@@ -407,7 +424,11 @@ def start(payload: dict) -> dict:
     return {"spawned": job_id}
 
 
-@app.function(image=image, volumes={STEMS_DIR: stems_volume}, schedule=modal.Cron("0 4 * * *"))
+@app.function(
+    image=slim_image,
+    volumes={STEMS_DIR: stems_volume},
+    schedule=modal.Cron("0 4 * * *"),
+)
 def collect_old_stems() -> None:
     """Delete stem directories older than a week.
 

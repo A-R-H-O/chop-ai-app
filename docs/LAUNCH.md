@@ -28,10 +28,6 @@ Ordered so each one unblocks the next.
       after inactivity and caps connections and storage. A paid product
       cannot sit on a database that goes to sleep.
 
-- [ ] **Create the Modal account and deploy the worker.** The stages are
-      verified on GPU; `chop_app.py`'s own wiring never has been. Expect
-      first-contact bugs there. `CREDENTIALS.md` §3 and §4.
-
 - [ ] **Add an Anthropic key.** Without it every chop falls back to the
       onset grid, which ignores what the producer typed. That is the
       product. `CREDENTIALS.md` §2.
@@ -83,6 +79,14 @@ Ordered so each one unblocks the next.
 
 - [x] YouTube off by default, enforced server side.
 
+- [x] **Modal deployed and proven end to end.** Endpoint at
+      `https://a-r-h-o--chop-ai-start.modal.run`, secret `chop-ai`
+      created. A real job ran the whole pipeline on an L4: 89 bpm,
+      C# major, three samples, 86 GPU-seconds, $0.019. The cache path
+      works too: the same audio again took 6.2 GPU-seconds and $0.000,
+      skipping separation and analysis. Three first-contact bugs found
+      and fixed, two of which ruff now catches in CI.
+
 - [x] Terms, privacy and refund pages. **Placeholders need filling:**
       legal entity name, registered address, contact email, jurisdiction,
       DMCA agent. They are spelled `[LIKE THIS]` so they are impossible
@@ -102,8 +106,8 @@ Ordered so each one unblocks the next.
 Worth holding in mind when the first real user arrives, because no
 amount of local work has covered it:
 
-1. **`chop_app.py`'s orchestration.** Volume, cache lookup, secret,
-   endpoint, spawn, the `audio_cache` hit path.
-2. **The checkout and webhook end to end.** The code is sound and the
+1. **The checkout and webhook end to end.** The code is sound and the
    crediting is idempotent, but no real order has flowed through it.
-3. **YouTube ingestion.** Never run, needs the proxy, off by default.
+2. **YouTube ingestion.** Never run, needs the proxy, off by default.
+3. **Claude chop selection against the real API.** The fallback works
+   and is what ran above; the model call itself still needs a key.

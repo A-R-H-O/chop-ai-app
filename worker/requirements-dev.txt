@@ -7,3 +7,4 @@ soundfile
 librosa
 pytest
 supabase
+ruff

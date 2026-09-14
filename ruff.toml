@@ -1,0 +1,29 @@
+# Static checks for the Python worker.
+#
+# Scoped deliberately narrow. Two bugs reached a deployed Modal app that
+# ruff catches for free: a name that no longer existed after a constant
+# moved modules, and an attribute read off a call that returns None. Both
+# cost a full image build and a GPU run to discover.
+#
+# The rules here are the ones that mean "this is broken", not the ones
+# that mean "this could read better". Style churn in a worker nobody is
+# reading is not worth a red build.
+
+exclude = ["worker/.venv", ".next", "node_modules"]
+line-length = 88
+target-version = "py311"
+
+[lint]
+select = [
+    "F",   # pyflakes: undefined names, unused imports, redefinitions
+    "E9",  # syntax and IO errors
+    "B",   # bugbear: mutable defaults, loop variable capture
+]
+
+# The worker catches broad exceptions on purpose: a job must always
+# resolve to done or failed, never hang.
+ignore = ["B008", "B904"]
+
+[lint.per-file-ignores]
+# Tests import fixtures for their side effects and shadow names freely.
+"worker/tests/*" = ["F401", "F811"]
